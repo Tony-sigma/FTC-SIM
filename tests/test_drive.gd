@@ -61,8 +61,26 @@ func _run() -> void:
 	robot.wheel_powers = [1.0, 1.0, 1.0, 1.0]
 	await steps(600)
 	p = robot.get_pose_ftc()
-	var limit: float = 141.24 / 2 - 9
+	var limit: float = (main.field.size / 2.0 - robot.length / 2.0) / IN
 	check("wall stops the robot", absf(p.y - limit) < 0.3 and robot.get_speed() < 0.02, "y=%.2f in, limit %.2f" % [p.y, limit])
+
+	# Mechanisms follow servo commands at a limited speed.
+	robot.reset_pose()
+	robot.wheel_powers = [0.0, 0.0, 0.0, 0.0]
+	await steps(5)
+	check("CAD model loaded", robot.has_cad_model)
+	check("turret starts centred, levers stowed", absf(robot.turret_deg) < 0.01 and robot.lever_front_deg < 0.01)
+	robot.turret_servo = 1.0
+	robot.lever_front_servo = 1.0
+	await steps(12)
+	check("mechanisms do not snap instantly", robot.turret_deg > 1.0 and robot.turret_deg < 20.0 and robot.lever_front_deg > 5.0 and robot.lever_front_deg < 60.0,
+		"turret %.1f, lever %.1f after 0.1 s" % [robot.turret_deg, robot.lever_front_deg])
+	await steps(240)
+	var half: float = 300.0 * 15.0 / 70.0 / 2.0
+	check("turret stops at its servo limit", absf(robot.turret_deg - half) < 0.01, "%.2f deg (limit %.2f)" % [robot.turret_deg, half])
+	check("front lever deploys to 90, back stays stowed", absf(robot.lever_front_deg - 90.0) < 0.01 and robot.lever_back_deg < 0.01)
+	robot.reset_pose()
+	await steps(240)
 
 	# Field-centric: robot facing left, stick forward must still drive away from the driver.
 	robot.reset_pose()

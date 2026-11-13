@@ -107,6 +107,12 @@ func _process(_dt: float) -> void:
 		"max_speed_in": robot.max_forward_speed() / Config.IN,
 		"camera": _cam_names[_cam_index],
 		"gamepad": teleop.gamepad_name(),
+		"turret_deg": robot.turret_deg,
+		"turret_half_range": robot.turret_range_deg() / 2.0,
+		"lever_front_deg": robot.lever_front_deg,
+		"lever_back_deg": robot.lever_back_deg,
+		"size_in": Vector3(Config.num("robot.length_in", 18.0), Config.num("robot.width_in", 18.0), Config.num("robot.height_in", 18.0)),
+		"size_limit_in": Config.num("robot.size_limit_in", 18.0),
 	})
 
 func _physics_process(_dt: float) -> void:
@@ -139,6 +145,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_C: _next_camera()
 			KEY_F5: reload_config()
 			KEY_F1: hud.toggle_help()
+			KEY_1: teleop.toggle_lever(true)
+			KEY_2: teleop.toggle_lever(false)
+			KEY_V: robot.toggle_shell()
 	elif event is InputEventJoypadButton and event.pressed:
 		match event.button_index:
 			JOY_BUTTON_Y: teleop.field_centric = not teleop.field_centric
@@ -146,3 +155,5 @@ func _unhandled_input(event: InputEvent) -> void:
 			JOY_BUTTON_START: match_timer.start_teleop_only()
 			JOY_BUTTON_BACK: reset_all()
 			JOY_BUTTON_RIGHT_SHOULDER: _next_camera()
+			JOY_BUTTON_A: teleop.toggle_lever(true)
+			JOY_BUTTON_B: teleop.toggle_lever(false)

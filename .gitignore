@@ -1,4 +1,4 @@
 .godot/
-*.import
 export/
 .DS_Store
+node_modules/

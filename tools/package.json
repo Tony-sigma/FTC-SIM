@@ -1,0 +1,12 @@
+{
+  "name": "ftc-sim-tools",
+  "private": true,
+  "type": "module",
+  "scripts": { "cad": "node process_cad.mjs" },
+  "dependencies": {
+    "@gltf-transform/core": "^4.1.0",
+    "@gltf-transform/extensions": "^4.1.0",
+    "@gltf-transform/functions": "^4.1.0",
+    "meshoptimizer": "^0.22.0"
+  }
+}

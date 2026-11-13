@@ -31,8 +31,28 @@ var max_accel := 3.5
 var max_ang_accel := 15.0
 var ticks_per_wheel_rev := 537.7
 
+## Mechanisms are commanded like servos: position 0..1. The parts follow at a limited speed.
+var turret_servo := 0.5
+var lever_front_servo := 0.0
+var lever_back_servo := 0.0
+## Where the parts actually are right now (degrees).
+var turret_deg := 0.0
+var lever_front_deg := 0.0
+var lever_back_deg := 0.0
+var has_cad_model := false
+
+var _turret_range_deg := 64.3
+var _turret_speed := 85.0
+var _lever_stowed := 0.0
+var _lever_deployed := 90.0
+var _lever_speed := 240.0
+var _lever_signs := [-1.0, 1.0]
+
 var _visual: Node3D
 var _shape: CollisionShape3D
+var _shell: MeshInstance3D
+var _turret_node: Node3D
+var _lever_nodes: Array[Node3D] = []
 
 func _ready() -> void:
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
@@ -53,6 +73,13 @@ func apply_config() -> void:
 	max_accel = Config.inches("drivetrain.max_accel_in_per_s2", 140.0)
 	max_ang_accel = deg_to_rad(Config.num("drivetrain.max_angular_accel_deg_per_s2", 900.0))
 	ticks_per_wheel_rev = Config.num("drivetrain.ticks_per_rev", 537.7) * gear
+	var ratio := Config.num("turret.servo_gear_teeth", 15.0) / Config.num("turret.turret_gear_teeth", 70.0)
+	_turret_range_deg = Config.num("turret.servo_range_deg", 300.0) * ratio
+	_turret_speed = Config.num("turret.servo_speed_deg_per_s", 400.0) * ratio
+	_lever_stowed = Config.num("levers.stowed_deg", 0.0)
+	_lever_deployed = Config.num("levers.deployed_deg", 90.0)
+	_lever_speed = Config.num("levers.speed_deg_per_s", 240.0)
+	_lever_signs = [Config.num("levers.front_deploy_sign", -1.0), Config.num("levers.back_deploy_sign", 1.0)]
 	_build_body()
 
 func reset_pose() -> void:
@@ -61,6 +88,9 @@ func reset_pose() -> void:
 	for i in 4:
 		wheel_powers[i] = 0.0
 		wheel_angles[i] = 0.0
+	turret_servo = 0.5
+	lever_front_servo = 0.0
+	lever_back_servo = 0.0
 
 func set_pose_ftc(x_in: float, y_in: float, heading_deg: float) -> void:
 	position = Vector3(x_in * Config.IN, 0.0, -y_in * Config.IN)
@@ -84,7 +114,28 @@ func get_wheel_ticks(i: int) -> float:
 func max_forward_speed() -> float:
 	return max_wheel_speed
 
+## Total turret travel in degrees (servo range through the gear reduction).
+func turret_range_deg() -> float:
+	return _turret_range_deg
+
+func toggle_shell() -> void:
+	if _shell:
+		_shell.visible = not _shell.visible
+
+func _update_mechanisms(dt: float) -> void:
+	# Positive turret angle = counter-clockwise seen from above (same sense as heading).
+	var turret_goal := (clampf(turret_servo, 0.0, 1.0) - 0.5) * _turret_range_deg
+	turret_deg = move_toward(turret_deg, turret_goal, _turret_speed * dt)
+	lever_front_deg = move_toward(lever_front_deg, lerpf(_lever_stowed, _lever_deployed, clampf(lever_front_servo, 0.0, 1.0)), _lever_speed * dt)
+	lever_back_deg = move_toward(lever_back_deg, lerpf(_lever_stowed, _lever_deployed, clampf(lever_back_servo, 0.0, 1.0)), _lever_speed * dt)
+	if _turret_node:
+		_turret_node.rotation.y = deg_to_rad(turret_deg)
+	if _lever_nodes.size() == 2:
+		_lever_nodes[0].rotation.x = deg_to_rad(lever_front_deg) * _lever_signs[0]
+		_lever_nodes[1].rotation.x = deg_to_rad(lever_back_deg) * _lever_signs[1]
+
 func _physics_process(dt: float) -> void:
+	_update_mechanisms(dt)
 	var p: Array[float] = [0.0, 0.0, 0.0, 0.0]
 	if enabled:
 		for i in 4:
@@ -139,9 +190,26 @@ func _box(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
 	_visual.add_child(mi)
 	return mi
 
+func _vec(path: String, default: Vector3) -> Vector3:
+	var a = Config.value(path, null)
+	if a is Array and a.size() == 3:
+		return Vector3(a[0], a[1], a[2])
+	return default
+
+func _add_model(file: String, parent: Node3D, pivot: Vector3) -> Node3D:
+	var holder := Node3D.new()
+	holder.position = pivot
+	parent.add_child(holder)
+	var scene = load("res://models/%s.glb" % file)
+	if scene is PackedScene:
+		holder.add_child(scene.instantiate())
+	return holder
+
 func _build_body() -> void:
 	if _visual:
 		_visual.queue_free()
+	_lever_nodes.clear()
+	_turret_node = null
 	if _shape == null:
 		_shape = CollisionShape3D.new()
 		add_child(_shape)
@@ -153,12 +221,25 @@ func _build_body() -> void:
 
 	_visual = Node3D.new()
 	add_child(_visual)
+	# Translucent shell = the box that actually collides (toggle with V).
+	_shell = _box(Vector3(width, height - clearance, length), _shape.position, Color(0.3, 0.75, 1.0, 0.18))
+
+	has_cad_model = ResourceLoader.exists("res://models/chassis.glb")
+	if has_cad_model:
+		# Real CAD, pre-processed by tools/process_cad.mjs. Each moving piece's origin is its pivot.
+		_shell.visible = false
+		_add_model("chassis", _visual, Vector3.ZERO)
+		_turret_node = _add_model("turret", _visual, _vec("turret.pivot_m", Vector3.ZERO))
+		_lever_nodes.append(_add_model("lever_front", _visual, _vec("levers.front_pivot_m", Vector3(0, 0.156, -0.162))))
+		_lever_nodes.append(_add_model("lever_back", _visual, _vec("levers.back_pivot_m", Vector3(0, 0.156, 0.162))))
+		# Small arrow on the floor in front of the robot marks which end is "front".
+		_box(Vector3(0.05, 0.004, 0.09), Vector3(0, 0.004, -length / 2.0 - 0.07), Color(1.0, 0.85, 0.1))
+		return
+
+	# No CAD available: simple placeholder box robot.
 	var wheel_w := 0.038
 	var body_w := maxf(half_track * 2.0 - wheel_w - 0.01, 0.1)
 	_box(Vector3(body_w, height - 0.03, length - 0.02), Vector3(0, 0.03 + (height - 0.03) / 2.0, 0), Color(0.16, 0.17, 0.2))
-	# Translucent shell = the full footprint that collides.
-	_box(Vector3(width, height - clearance, length), _shape.position, Color(0.3, 0.75, 1.0, 0.18))
-	# Bright front bar + arrow on top so the driver can tell which way it faces.
 	_box(Vector3(width, 0.03, 0.03), Vector3(0, height - 0.015, -length / 2.0 + 0.015), Color(1.0, 0.85, 0.1))
 	_box(Vector3(0.04, 0.012, length * 0.55), Vector3(0, height + 0.006, -length * 0.1), Color(1.0, 0.85, 0.1))
 	for sx in [-1.0, 1.0]:

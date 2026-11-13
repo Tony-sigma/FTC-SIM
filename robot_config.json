@@ -1,8 +1,8 @@
 {
   "_readme": "Single source of truth for every robot/field number. PLACEHOLDER values are marked in _placeholders. Edit, save, then press F5 in the sim (or restart) to reload. Units are in the key names.",
   "_placeholders": [
-    "robot.length_in / width_in / height_in (measure from CAD)",
-    "drivetrain.track_width_in / wheelbase_in (measure from CAD)",
+    "turret.servo_speed_deg_per_s, levers.speed_deg_per_s (depends on the servos you buy)",
+    "levers.front_deploy_sign / back_deploy_sign (flip if a lever swings the wrong way)",
     "drivetrain.motor_rpm / ticks_per_rev / external_gear_ratio",
     "drivetrain.loaded_speed_fraction / strafe_efficiency / accel limits (tune against the real robot)",
     "match.transition_s (check the BIOBUZZ manual)",
@@ -22,9 +22,11 @@
   },
 
   "robot": {
-    "length_in": 18.0,
-    "width_in": 18.0,
-    "height_in": 14.0,
+    "_size_note": "Measured from the CAD by tools/process_cad.mjs (see models/measurements.json). This box is what collides with walls.",
+    "length_in": 17.27,
+    "width_in": 17.65,
+    "height_in": 20.22,
+    "size_limit_in": 18.0,
     "start_x_in": 0.0,
     "start_y_in": -48.0,
     "start_heading_deg": 90.0
@@ -36,15 +38,37 @@
     "motor_rpm": 312.0,
     "ticks_per_rev": 537.7,
     "external_gear_ratio": 1.0,
-    "track_width_in": 16.0,
-    "wheelbase_in": 13.0,
+    "track_width_in": 15.388,
+    "wheelbase_in": 7.842,
     "loaded_speed_fraction": 0.85,
     "strafe_efficiency": 0.85,
     "max_accel_in_per_s2": 140.0,
     "max_angular_accel_deg_per_s2": 900.0
   },
 
+  "turret": {
+    "servo_name": "turretServo",
+    "servo_range_deg": 300.0,
+    "servo_speed_deg_per_s": 400.0,
+    "servo_gear_teeth": 15,
+    "turret_gear_teeth": 70,
+    "pivot_m": [0.0, 0.0, 0.0]
+  },
+
+  "levers": {
+    "_note": "Servo position 0 = stowed (upright, as in the CAD), 1 = deployed. Pivots are in the robot frame (+x right, +y up, -z forward, metres), from models/measurements.json.",
+    "servo_names": ["leverLeft", "leverRight"],
+    "stowed_deg": 0.0,
+    "deployed_deg": 90.0,
+    "speed_deg_per_s": 240.0,
+    "front_pivot_m": [0.0, 0.1559, -0.162],
+    "back_pivot_m": [0.0, 0.1559, 0.162],
+    "front_deploy_sign": -1,
+    "back_deploy_sign": 1
+  },
+
   "driver": {
+    "turret_nudge_per_s": 0.6,
     "stick_deadzone": 0.05,
     "slow_mode_scale": 0.4,
     "turn_scale": 1.0,
