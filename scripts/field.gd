@@ -200,6 +200,19 @@ func cell_count(alliance: String, up: bool) -> int:
 			return h["areas"][side].get_overlapping_bodies().size()
 	return 0
 
+## Every AprilTag on the field right now: [{ id, pos, normal }]. Each hive carries one under each cell;
+## they move and tilt with the hive.
+func april_tags() -> Array:
+	var ids = Config.value("field.april_tags", {})
+	var out: Array = []
+	for h in hives:
+		var t: Transform3D = h["body"].global_transform
+		for side in ["bottom", "top"]:
+			var key := "%s_%s" % [h["alliance"], "audience" if side == "bottom" else "scoring"]
+			var z := 14.0 * Config.IN * (1.0 if side == "bottom" else -1.0)
+			out.append({"id": int(ids.get(key, 0)) if ids is Dictionary else 0, "pos": t * Vector3(0, -1.5 * Config.IN, z), "normal": t.basis * Vector3.DOWN})
+	return out
+
 ## World position of the AprilTag under the raised (active) cell of an alliance's hive.
 func aim_point(alliance: String):
 	var h := hive_of(alliance)

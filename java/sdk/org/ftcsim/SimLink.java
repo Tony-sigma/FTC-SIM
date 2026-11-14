@@ -24,6 +24,9 @@ public class SimLink {
     private Map<String, Double> motorMaxTps = new HashMap<>();
     private List<String> servoNames = new ArrayList<>();
     private volatile boolean helloSeen = false;
+    private volatile List<double[]> llTags = new ArrayList<>();
+    private volatile double[] llPose = {0, 0, 0};
+    private volatile String limelightName = "limelight";
 
     private final Map<String, Double> motorsOut = new ConcurrentHashMap<>();
     private final Map<String, Double> servosOut = new ConcurrentHashMap<>();
@@ -63,6 +66,7 @@ public class SimLink {
                     List<String> servos = new ArrayList<>();
                     for (Object o : Json.list(m.get("servos"))) servos.add(String.valueOf(o));
                     motorMaxTps = max;
+                    if (m.get("limelight") != null) limelightName = String.valueOf(m.get("limelight"));
                     servoNames = servos;
                     helloSeen = true;
                 } else {
@@ -70,6 +74,14 @@ public class SimLink {
                     List<Object> imu = Json.list(m.get("imu"));
                     if (imu.size() >= 2) { yawDeg = Json.num(imu.get(0)); yawRateDeg = Json.num(imu.get(1)); }
                     simTime = Json.num(m.get("t"));
+                    List<double[]> tags = new ArrayList<>();
+                    for (Object o : Json.list(m.get("ll"))) {
+                        List<Object> t = Json.list(o);
+                        if (t.size() >= 4) tags.add(new double[]{Json.num(t.get(0)), Json.num(t.get(1)), Json.num(t.get(2)), Json.num(t.get(3))});
+                    }
+                    llTags = tags;
+                    List<Object> lp = Json.list(m.get("llpose"));
+                    if (lp.size() >= 3) llPose = new double[]{Json.num(lp.get(0)), Json.num(lp.get(1)), Json.num(lp.get(2))};
                     if (Json.bool(m.get("start"))) started = true;
                     if (Json.bool(m.get("stop"))) stopRequested = true;
                     fill(gamepad1, Json.object(m.get("gamepad1")));
@@ -153,6 +165,11 @@ public class SimLink {
     public double simTime() { return simTime; }
     public double yawDeg() { return yawDeg; }
     public double yawRateDeg() { return yawRateDeg; }
+    /** AprilTags in view, biggest first: {id, tx, ty, ta}. */
+    public List<double[]> limelightTags() { return llTags; }
+    /** Robot pose from the tags: {x m, y m, heading deg}. */
+    public double[] limelightPose() { return llPose; }
+    public String limelightName() { return limelightName; }
     public Set<String> motorNames() { return motorMaxTps.keySet(); }
     public List<String> servoNames() { return servoNames; }
     public double motorMaxTicksPerSecond(String name) { Double v = motorMaxTps.get(name); return v == null || v <= 0 ? 2800.0 : v; }

@@ -100,6 +100,19 @@ func _run() -> void:
 	key(KEY_1, false)
 	key(KEY_LEFT, false)
 	check("A button deploys a lever, D-pad turns the turret", robot.lever_front_deg > 80.0 and robot.turret_deg > 5.0, "lever %.0f, turret %.1f" % [robot.lever_front_deg, robot.turret_deg])
+	# Limelight: the OpMode's own auto-aim finds our hive's tag and centres the turret on it.
+	key(KEY_T, true)
+	await steps(20)
+	key(KEY_T, false)
+	var ll = main.limelight
+	var locked := func():
+		for t in ll.tags:
+			if (t["id"] == 1 or t["id"] == 2) and absf(t["tx"]) < 1.5:
+				return true
+		return false
+	ok = await wait_for(locked, 20.0)
+	check("Java auto-aim centres the turret on our hive's AprilTag", ok, ll.summary())
+	check("Limelight data shows up in telemetry", bridge.telemetry.contains("Auto-aim : ON") and bridge.telemetry.contains("Limelight : tag"), bridge.telemetry.strip_edges().replace("\n", " | "))
 	main.reset_all()
 	ok = await wait_for(func(): return not bridge.connected and not runner.is_running(), 5.0)
 	check("reset stops the OpMode and hands back to the built-in TeleOp", ok)

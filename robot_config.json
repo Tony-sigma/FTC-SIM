@@ -21,6 +21,8 @@
     "flower_lever_reach_in": 2.5,
     "hive_pivot_height_in": 43.03,
     "_hive_note": "The hive is a seesaw on top of the A-frame (models in cad/field/). The pivot height is the axle holder height measured from the frame CAD. Rule from the team: at hive_tip_pollen pollen in the raised cell it tips, and the pollen inside at that moment count as scored. They then roll out of the lowered cell and the other cell becomes the raised one. Tilt angle and tip time are guesses.",
+    "_april_tag_note": "PLACEHOLDER IDs. Each hive has a tag under each cell (audience side and scoring side). Replace with the numbers from the manual.",
+    "april_tags": { "red_audience": 1, "red_scoring": 2, "blue_audience": 3, "blue_scoring": 4 },
     "hive_tip_pollen": 8,
     "hive_tip_angle_deg": 30.0,
     "hive_tip_time_s": 0.8
@@ -118,6 +120,20 @@
     "back_pivot_m": [0.0, 0.1559, 0.162],
     "front_deploy_sign": -1,
     "back_deploy_sign": 1
+  },
+
+  "limelight": {
+    "_note": "Limelight 4 on the turret, looking along the shooter. It does not process images: the sim works out which AprilTags are in view from where the robot and turret are. position_m is in the turret's frame (+x = shooting direction, +y up), measured from the CAD. PLACEHOLDERS: mount_pitch_deg (how far the camera is tilted up), the field of view (82 x 56.2 deg is my figure for the Limelight 4), max range and viewing angle, and tag_size_in.",
+    "name": "limelight",
+    "position_m": [0.164, 0.362, 0.0],
+    "mount_pitch_deg": 25.0,
+    "fov_horizontal_deg": 82.0,
+    "fov_vertical_deg": 56.2,
+    "max_range_in": 144.0,
+    "max_view_angle_deg": 75.0,
+    "tag_size_in": 4.0,
+    "angle_noise_deg": 0.0,
+    "pose_noise_in": 0.0
   },
 
   "odometry": {

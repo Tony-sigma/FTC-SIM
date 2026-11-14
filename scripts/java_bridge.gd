@@ -4,6 +4,7 @@ extends Node
 ## the OpMode answers with motor powers and servo positions, by the hardware names in robot_config.json.
 
 var robot  # scripts/robot.gd
+var limelight  # scripts/limelight.gd
 var connected := false
 var opmode := ""
 var flavor := ""     # "teleop" or "auto"
@@ -116,7 +117,7 @@ func _on_connect() -> void:
 		motors[name] = 0.0
 	var servos: Array = [_turret, _hood, _gate]
 	servos.append_array(_levers)
-	_send({"type": "hello", "motors": motors, "servos": servos})
+	_send({"type": "hello", "motors": motors, "servos": servos, "limelight": str(Config.value("limelight.name", "limelight"))})
 
 func _on_disconnect() -> void:
 	_peer = null
@@ -188,7 +189,15 @@ func _state(dt: float) -> Dictionary:
 	if _odo.size() >= 2:
 		motors[_odo[0]] = _encoder(_odo[0], robot.odo_forward * odo_tpm, dt)
 		motors[_odo[1]] = _encoder(_odo[1], robot.odo_strafe * odo_tpm, dt)
+	var ll: Array = []
+	var ll_pose: Array = []
+	if limelight != null:
+		for t in limelight.tags:
+			ll.append([t["id"], snappedf(t["tx"], 0.01), snappedf(t["ty"], 0.01), snappedf(t["ta"], 0.0001)])
+		for v in limelight.botpose:
+			ll_pose.append(snappedf(v, 0.0001))
 	return {
+		"ll": ll, "llpose": ll_pose,
 		"type": "state", "t": snappedf(match_time, 0.001), "start": _start, "stop": _stop, "motors": motors,
 		"imu": [snappedf(robot.get_pose_ftc().z, 0.001), snappedf(rad_to_deg(robot.omega), 0.01)],
 		"gamepad1": _gamepad(0, true), "gamepad2": _gamepad(1, false),
@@ -196,7 +205,7 @@ func _state(dt: float) -> Dictionary:
 
 ## Gamepad state in FTC terms. With `keys`, the keyboard fills in for a missing gamepad:
 ## WASD = left stick, Q/E = right stick X, Shift = left trigger, Space = right trigger, Ctrl = left bumper,
-## B = right bumper, arrows = D-pad, 1 2 3 4 = A B X Y.
+## B = right bumper, arrows = D-pad, 1 2 3 4 = A B X Y, T = right-stick click.
 func _gamepad(index: int, keys: bool) -> Dictionary:
 	var pads := Input.get_connected_joypads()
 	var g := {"lx": 0.0, "ly": 0.0, "rx": 0.0, "ry": 0.0, "lt": 0.0, "rt": 0.0}
@@ -223,7 +232,7 @@ func _gamepad(index: int, keys: bool) -> Dictionary:
 		g["lt"] = maxf(g["lt"], _key(KEY_SHIFT))
 		g["rt"] = maxf(g["rt"], _key(KEY_SPACE))
 		var keymap := {KEY_CTRL: "left_bumper", KEY_B: "right_bumper", KEY_UP: "dpad_up", KEY_DOWN: "dpad_down",
-			KEY_LEFT: "dpad_left", KEY_RIGHT: "dpad_right", KEY_1: "a", KEY_2: "b", KEY_3: "x", KEY_4: "y"}
+			KEY_LEFT: "dpad_left", KEY_RIGHT: "dpad_right", KEY_1: "a", KEY_2: "b", KEY_3: "x", KEY_4: "y", KEY_T: "right_stick_button"}
 		for k in keymap:
 			if Input.is_physical_key_pressed(k) and not b.has(keymap[k]):
 				b.append(keymap[k])

@@ -58,6 +58,9 @@ provides stand-ins with the same names as the FTC SDK classes (`java/sdk`).
 - Servos: `turretServo` (0..1 = one full turn, 0.5 = centre), `hoodServo`, `gateServo`
   (above 0.5 = open), `leverLeft` (front lever), `leverRight` (back lever).
 - `IMU` yaw, `gamepad1` / `gamepad2`, `telemetry`, `ElapsedTime`.
+- `Limelight3A` called `limelight` (the SDK class used for the Limelight 4 too): `getLatestResult()`
+  gives the AprilTags in view with `tx` / `ty` / `ta`, their IDs, and the robot's field position
+  (`getBotpose()`, metres from the field centre). See the Limelight section below.
 - The left drive motors are "mounted mirrored" (`drivetrain.motor_inverted`), so code needs the
   usual `setDirection(REVERSE)` on the left side, as on a real robot.
 
@@ -65,7 +68,7 @@ Without a gamepad, the keyboard acts as gamepad1: WASD = left stick, Q/E = right
 Shift = left trigger, Space = right trigger, Ctrl = left bumper, B = right bumper, arrows = D-pad,
 1 2 3 4 = A B X Y.
 
-**Not there yet:** the Limelight, the goBILDA Pinpoint driver, Road Runner / Pedro Pathing, FTCLib.
+**Not there yet:** the goBILDA Pinpoint driver, Road Runner / Pedro Pathing, FTCLib.
 A file that uses something the sim does not have is listed as "EXCLUDED" with the reason and left
 out; the rest of your code still runs.
 
@@ -75,6 +78,20 @@ cd java
 java RunSim.java --list
 java RunSim.java "Biobuzz TeleOp"
 ```
+
+## Limelight and AprilTags
+Each hive has an AprilTag under each of its two cells. The simulated Limelight 4 sits on the turret
+and looks along the shooter. It does not process pictures: the sim works out from the robot and
+turret position which tags are inside the camera's field of view, within range and facing it, and
+reports the angles a real Limelight would. The HUD line "Limelight" shows what it sees right now.
+
+The sample `BiobuzzTeleOp` uses it: right-stick click (T on the keyboard) makes the turret search
+for our hive's tag and stay centred on it.
+
+Placeholders in `robot_config.json`: the tag IDs (`field.april_tags`, currently 1 to 4), how far the
+camera is tilted up, its field of view (82 x 56.2 degrees), range, and tag size. `angle_noise_deg`
+and `pose_noise_in` add jitter if you want the code tested against imperfect readings. Tags are
+never hidden behind the frame or the hive itself; the sim does not check for things in the way.
 
 ## Changing robot numbers
 Everything lives in **`robot_config.json`**: dimensions, wheel size, motor RPM, track width,
@@ -167,5 +184,5 @@ The second one compiles and runs the sample Java OpModes against the sim (needs 
 2. ✅ Real robot CAD model (turret + lever pivots)
 3. ✅ Pollen, intakes, shooter, turret/lever controls, BIOBUZZ field layout (heights and hive/flower behaviour still guesses)
 4. ✅ Java sim SDK + bridge: real OpModes compile and drive the sim (plain TCP with JSON lines rather than WebSocket)
-5. Odometry + IMU, sample autonomous
-6. Limelight sim
+5. Odometry + IMU, sample autonomous (IMU, odometry pod encoders and a sample autonomous are in; Pinpoint, Road Runner and Pedro Pathing are not)
+6. ✅ Limelight sim (AprilTag angles, IDs and robot position)

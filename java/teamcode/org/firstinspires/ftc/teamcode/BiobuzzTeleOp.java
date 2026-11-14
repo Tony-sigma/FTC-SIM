@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.LLResultTypes;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -17,6 +20,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
  *   Left trigger intake (both sides)     Right trigger shoot
  *   Right bumper spit pollen back out    Left bumper   slow mode
  *   D-pad left/right  turret             D-pad up/down hood
+ *   Right stick click  turret auto-aim on/off (Limelight keeps the turret on the AprilTag it sees)
  *   A / B        front / back lever      Y  field-centric on/off     X  reset heading
  */
 @TeleOp(name = "Biobuzz TeleOp", group = "Biobuzz")
@@ -25,10 +29,15 @@ public class BiobuzzTeleOp extends OpMode {
     private DcMotor intakeA, intakeB, shooterLeft, shooterRight;
     private Servo turretServo, hoodServo, gateServo, leverLeft, leverRight;
     private IMU imu;
+    private Limelight3A limelight;
 
     private double turret = 0.5, hood = 0.5;
     private boolean fieldCentric = false, leverFrontOut = false, leverBackOut = false;
-    private boolean lastA, lastB, lastY;
+    private boolean lastA, lastB, lastY, lastStick;
+    /** AprilTag IDs under OUR hive's two cells. PLACEHOLDERS: use the numbers from the game manual. */
+    private static final int[] OUR_TAGS = {1, 2};
+    private boolean autoAim = false;
+    private static final double sweep = 0.003;
 
     @Override
     public void init() {
@@ -58,6 +67,10 @@ public class BiobuzzTeleOp extends OpMode {
         imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(
             RevHubOrientationOnRobot.LogoFacingDirection.UP, RevHubOrientationOnRobot.UsbFacingDirection.FORWARD)));
         imu.resetYaw();
+
+        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+        limelight.pipelineSwitch(0);   // pipeline 0 = AprilTags
+        limelight.start();
 
         telemetry.addData("Status", "Ready. Press start.");
     }
@@ -97,8 +110,33 @@ public class BiobuzzTeleOp extends OpMode {
         gateServo.setPosition(shoot ? 1.0 : 0.0);     // the gate lets pollen through only while shooting
 
         // ---- turret, hood, levers ----
-        if (gamepad1.dpad_left) turret += 0.004;
-        if (gamepad1.dpad_right) turret -= 0.004;
+        if (gamepad1.right_stick_button && !lastStick) autoAim = !autoAim;
+        lastStick = gamepad1.right_stick_button;
+        // Pick the biggest tag in view that belongs to our hive (the list is sorted biggest first).
+        LLResult result = limelight.getLatestResult();
+        LLResultTypes.FiducialResult tag = null;
+        if (result != null && result.isValid()) {
+            for (LLResultTypes.FiducialResult f : result.getFiducialResults()) {
+                if (tag == null && (f.getFiducialId() == OUR_TAGS[0] || f.getFiducialId() == OUR_TAGS[1])) tag = f;
+            }
+        }
+        boolean seesTag = tag != null;
+        if (gamepad1.dpad_left) { turret += 0.004; autoAim = false; }
+        if (gamepad1.dpad_right) { turret -= 0.004; autoAim = false; }
+        if (autoAim) {
+            if (seesTag) {
+                // tx is how many degrees the tag is right of centre. One full servo travel = 360 degrees
+                // of turret, and a bigger servo position turns the turret left, so subtract a share of tx.
+                turret -= tag.getTargetXDegrees() / 360.0 * 0.2;
+            } else {
+                // Nothing in view: keep turning the turret until a tag shows up.
+                turret += sweep;
+            }
+            // Servo positions 0 and 1 point the turret the same way (one full turn apart), so going past
+            // one end continues from the other.
+            if (turret > 1.0) turret -= 1.0;
+            if (turret < 0.0) turret += 1.0;
+        }
         if (gamepad1.dpad_up) hood += 0.01;
         if (gamepad1.dpad_down) hood -= 0.01;
         turret = Math.max(0.0, Math.min(1.0, turret));
@@ -116,6 +154,9 @@ public class BiobuzzTeleOp extends OpMode {
         telemetry.addData("Drive", fieldCentric ? "field-centric" : "robot-centric");
         telemetry.addData("Heading", "%.1f deg", Math.toDegrees(heading));
         telemetry.addData("Turret / hood", "%.2f / %.2f", turret, hood);
+        telemetry.addData("Auto-aim", autoAim ? "ON" : "off");
+        if (seesTag) telemetry.addData("Limelight", "tag %d  tx %.1f  ty %.1f", tag.getFiducialId(), tag.getTargetXDegrees(), tag.getTargetYDegrees());
+        else telemetry.addData("Limelight", "no tag");
         telemetry.addData("Front left encoder", frontLeft.getCurrentPosition());
     }
 }

@@ -105,6 +105,7 @@ func update_hud(d: Dictionary) -> void:
 			("  (%s)" % d.auto_shot) if d.auto_shot != "" else ""],
 		"Turret: %+6.1f°  %s   %s" % [d.turret_deg, "360°" if d.turret_continuous else "limit ±%.1f°" % d.turret_half_range,
 			("AUTO-AIM at %s hive tag" % d.alliance) if d.auto_aim else "manual"],
+		"Limelight: %s" % d.limelight,
 		"Levers: front %2.0f°   back %2.0f°" % [d.lever_front_deg, d.lever_back_deg],
 		"Size:  %.1f x %.1f x %.1f in  %s" % [d.size_in.x, d.size_in.y, d.size_in.z,
 			"OK" if maxf(d.size_in.x, maxf(d.size_in.y, d.size_in.z)) <= d.size_limit_in else "OVER %.0f in LIMIT" % d.size_limit_in],

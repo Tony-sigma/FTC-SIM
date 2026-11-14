@@ -24,7 +24,7 @@ public class HardwareMap {
         if (dev == null) {
             throw new IllegalArgumentException("Unable to find a hardware device with name \"" + name + "\" and type "
                 + type.getSimpleName() + ". The simulated robot has motors " + link.motorNames() + ", servos "
-                + link.servoNames() + " and an IMU (any name). Names come from robot_config.json.");
+                + link.servoNames() + ", a Limelight3A called \"" + link.limelightName() + "\" and an IMU (any name). Names come from robot_config.json.");
         }
         return dev;
     }
@@ -33,6 +33,7 @@ public class HardwareMap {
         Object dev = devices.get(name);
         if (dev == null) {
             if (type == IMU.class) dev = new org.ftcsim.SimIMU(link);
+            else if (type == com.qualcomm.hardware.limelightvision.Limelight3A.class && link.limelightName().equals(name)) dev = new com.qualcomm.hardware.limelightvision.Limelight3A(link);
             else if (type.isAssignableFrom(org.ftcsim.SimMotor.class) && link.motorNames().contains(name)) dev = new org.ftcsim.SimMotor(link, name);
             else if (type.isAssignableFrom(org.ftcsim.SimServo.class) && link.servoNames().contains(name)) dev = new org.ftcsim.SimServo(link, name);
             if (dev != null) devices.put(name, dev);
