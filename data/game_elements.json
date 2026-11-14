@@ -1,0 +1,152 @@
+{
+	"_info": "Piese pe podea la start (manual BEE 10.3.1), coordonate in inch. 40 POLLEN = 16 in FLOWERS (field_layout.json) + 8 in GARDENS + 4 in robotul nostru + 12 pre-load ale celor 3 roboti absenti, puse in LOADING ZONE langa perete.",
+	"types": {
+		"pollen": {
+			"shape": "circle",
+			"size_in": 2.8,
+			"color": "#f2d21b",
+			"weight_g": 12.5,
+			"angular_damp": 3.0,
+			"bounce": 0.25,
+			"friction": 0.3,
+			"rolling_resistance": 0.04,
+			"slide_friction": 0.5
+		},
+		"nectar_red": {
+			"shape": "circle",
+			"size_in": 3.6,
+			"color": "#e03131",
+			"weight_g": 26.5,
+			"angular_damp": 3.0,
+			"bounce": 0.25,
+			"friction": 0.3,
+			"rolling_resistance": 0.04,
+			"slide_friction": 0.5
+		},
+		"nectar_blue": {
+			"shape": "circle",
+			"size_in": 3.6,
+			"color": "#3b5bdb",
+			"weight_g": 26.5,
+			"angular_damp": 3.0,
+			"bounce": 0.25,
+			"friction": 0.3,
+			"rolling_resistance": 0.04,
+			"slide_friction": 0.5
+		}
+	},
+	"robot_preload": [
+		"pollen",
+		"pollen",
+		"pollen",
+		"pollen"
+	],
+	"elements": [
+		{
+			"type": "pollen",
+			"x": 1.4,
+			"y": 142.6,
+			"_info": "GARDEN rosu"
+		},
+		{
+			"type": "pollen",
+			"x": 4.2,
+			"y": 142.6
+		},
+		{
+			"type": "pollen",
+			"x": 7.0,
+			"y": 142.6
+		},
+		{
+			"type": "pollen",
+			"x": 9.8,
+			"y": 142.6
+		},
+		{
+			"type": "pollen",
+			"x": 142.6,
+			"y": 1.4,
+			"_info": "GARDEN albastru"
+		},
+		{
+			"type": "pollen",
+			"x": 139.8,
+			"y": 1.4
+		},
+		{
+			"type": "pollen",
+			"x": 137.0,
+			"y": 1.4
+		},
+		{
+			"type": "pollen",
+			"x": 134.2,
+			"y": 1.4
+		},
+		{
+			"type": "pollen",
+			"x": 1.4,
+			"y": 32.3,
+			"_info": "LOADING ZONE rosu: pre-load-ul robotului rosu 2 (absent)"
+		},
+		{
+			"type": "pollen",
+			"x": 1.4,
+			"y": 35.1
+		},
+		{
+			"type": "pollen",
+			"x": 1.4,
+			"y": 37.9
+		},
+		{
+			"type": "pollen",
+			"x": 1.4,
+			"y": 40.7
+		},
+		{
+			"type": "pollen",
+			"x": 142.6,
+			"y": 96.7,
+			"_info": "LOADING ZONE albastru: pre-load-urile robotilor albastri 1 si 2 (absenti)"
+		},
+		{
+			"type": "pollen",
+			"x": 142.6,
+			"y": 99.5
+		},
+		{
+			"type": "pollen",
+			"x": 142.6,
+			"y": 102.3
+		},
+		{
+			"type": "pollen",
+			"x": 142.6,
+			"y": 105.1
+		},
+		{
+			"type": "pollen",
+			"x": 142.6,
+			"y": 107.9
+		},
+		{
+			"type": "pollen",
+			"x": 142.6,
+			"y": 110.7
+		},
+		{
+			"type": "pollen",
+			"x": 142.6,
+			"y": 113.5
+		},
+		{
+			"type": "pollen",
+			"x": 142.6,
+			"y": 116.3
+		}
+	],
+	"_weight_info": "Greutati estimate: mingea Gopher ResisDent de 5 in cantareste 0.156 lb (71 g, AndyMark). Scalat cu volumul: 2.8 in -> 12.5 g (POLLEN), 3.6 in -> 26.5 g (NECTAR), deci NECTAR ~2.1x mai greu. 'mass' e masa din fizica, in acelasi raport.",
+	"_physics_info": "Fizica pe podea (game/game_element.gd): masa vine din weight_g (masa reala fata de robot); rolling_resistance = coeficientul de rezistenta la rostogolire pe placile de spuma (franare constanta = coef * g). Referinte: postav de biliard 0.005-0.015 (Alciatore), mocheta scurta ~0.014 (coast-down); o bila de spuma pe placa EVA moale pierde mai mult (se deformeaza amandoua), deci 0.04: rostogolita cu 60 in/s se opreste dupa ~2 m. Aerul: k*v^2 cu Cd 0.5 (ca bilele lansate). bounce se aduna cu al celuilalt corp (bila+bila 0.5, bila+perete / cadru HIVE / FLOWER 0.5, bila+robot 0.25); friction = frecarea intre bile; slide_friction = frecarea de alunecare pe placa (alunecare -> rostogolire)."
+}

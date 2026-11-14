@@ -24,10 +24,20 @@ func _run() -> void:
 	var teleop = main.teleop
 	var timer = main.match_timer
 	teleop.active = false  # the test sets wheel powers itself
+	# A clear lane on the red side for the driving checks.
+	var cfg = root.get_node("Config")
+	cfg.data["robot"]["start_x_in"] = -50.0
+	cfg.data["robot"]["start_y_in"] = -50.0
+	cfg.data["robot"]["start_heading_deg"] = 90.0
+	check("robot starts preloaded", robot.held_total() == 4, "holding %d" % robot.held_total())
+	check("field has 4 flowers and 4 hive cells", main.field.flowers.size() == 4 and main.field.cells.size() == 4)
+	check("starting pollen is on the field", main.pollen.ball_count() == 20, "%d balls" % main.pollen.ball_count())
+	robot.reset_pose()
+	await steps(2)
 	var IN := 0.0254
 
 	var p0: Vector3 = robot.get_pose_ftc()
-	check("starts at configured pose", p0.distance_to(Vector3(0, -48, 90)) < 0.01, str(p0))
+	check("starts at configured pose", p0.distance_to(Vector3(-50, -50, 90)) < 0.01, str(p0))
 
 	# Forward at full power for 1 s.
 	robot.wheel_powers = [1.0, 1.0, 1.0, 1.0]
@@ -35,7 +45,7 @@ func _run() -> void:
 	var p: Vector3 = robot.get_pose_ftc()
 	var expect_v: float = 312.0 / 60.0 * PI * 0.104 * 0.85
 	check("forward reaches max speed", absf(robot.get_speed() - expect_v) < 0.01, "%.3f m/s vs %.3f" % [robot.get_speed(), expect_v])
-	check("forward moves +y only", p.y > p0.y + 30 and absf(p.x) < 0.01 and absf(p.z - 90) < 0.01, str(p))
+	check("forward moves +y only", p.y > p0.y + 30 and absf(p.x + 50) < 0.01 and absf(p.z - 90) < 0.01, str(p))
 	check("encoders count up", robot.get_wheel_ticks(0) > 1000, "%.0f ticks" % robot.get_wheel_ticks(0))
 	var dist_m: float = (p.y - p0.y) * IN
 	var ticks_dist: float = robot.get_wheel_ticks(0) / 537.7 * PI * 0.104
@@ -46,7 +56,7 @@ func _run() -> void:
 	robot.wheel_powers = teleop.mix(0, 1, 0)
 	await steps(120)
 	p = robot.get_pose_ftc()
-	check("strafe right moves +x only", p.x > 20 and absf(p.y + 48) < 0.01 and absf(p.z - 90) < 0.01, str(p))
+	check("strafe right moves +x only", p.x > -30 and absf(p.y + 50) < 0.01 and absf(p.z - 90) < 0.01, str(p))
 	check("strafe is slower than forward", robot.get_speed() < expect_v * 0.9)
 
 	# Turn right (clockwise) in place.
@@ -54,7 +64,7 @@ func _run() -> void:
 	robot.wheel_powers = teleop.mix(0, 0, 1)
 	await steps(60)
 	p = robot.get_pose_ftc()
-	check("turn right is clockwise, in place", p.z < 60 and Vector2(p.x, p.y + 48).length() < 0.01, str(p))
+	check("turn right is clockwise, in place", p.z < 60 and Vector2(p.x + 50, p.y + 50).length() < 0.01, str(p))
 
 	# Walls stop the robot.
 	robot.reset_pose()
@@ -85,46 +95,62 @@ func _run() -> void:
 	# Pollen: intake swallows a ball, the shooter launches it.
 	var pollen = main.pollen
 	pollen.clear()
-	robot.set_pose_ftc(0, 0, 90)
+	robot.set_pose_ftc(-50, -50, 90)
 	await steps(5)
 	var ball = pollen.spawn_ball(robot.global_position + Vector3(0, pollen.radius, -(robot.length / 2.0 + 0.3)))
+	var ball_z0: float = ball.global_position.z
 	robot.wheel_powers = [0.3, 0.3, 0.3, 0.3]
 	await steps(180)
-	check("intake off: ball is pushed, not swallowed", robot.held_total() == 0 and pollen.ball_count() == 1 and ball.global_position.z < -(robot.length / 2.0 + 0.3))
+	check("intake off: ball is pushed, not swallowed", robot.held_total() == 0 and pollen.ball_count() == 1 and ball.global_position.z < ball_z0 - 0.05)
 	robot.intake_front_power = 1.0
 	await steps(120)
 	check("intake on: ball is swallowed into the front feeder", robot.held_count(0) == 1 and pollen.ball_count() == 0)
 	robot.wheel_powers = [0.0, 0.0, 0.0, 0.0]
 	await steps(120)
 	check("ball waits at the neck while the flywheel is off", robot.held_count(0) == 1 and robot.shots_fired == 0)
+	robot.intake_front_power = 0.0
 	robot.shooter_power = 1.0
-	await steps(60)
-	check("flywheel on: ball is launched", robot.held_total() == 0 and robot.shots_fired == 1 and pollen.ball_count() == 1)
+	await steps(240)
+	check("flywheel alone does not fire", robot.shots_fired == 0 and robot.flywheel_fraction > 0.95)
+	var start: Vector3 = robot.global_position
+	robot.intake_front_power = 1.0
+	await steps(30)
+	check("flywheel + feeder: ball is launched", robot.held_total() == 0 and robot.shots_fired == 1 and pollen.ball_count() == 1)
 	robot.intake_front_power = 0.0
 	robot.shooter_power = 0.0
 	var shot = get_nodes_in_group("pollen")[0]
-	var start: Vector3 = robot.global_position
 	await steps(360)
 	var flew: Vector3 = shot.global_position - start
-	check("shot flies out the robot's right side and lands on the floor", flew.x > 0.8 and absf(flew.z) < 0.5 and shot.global_position.y < 0.1, "landed %.2f m to the right" % flew.x)
+	check("shot flies out the robot's right side and lands on the floor", flew.x > 1.5 and absf(flew.z) < 0.5 and shot.global_position.y < 0.1, "landed %.2f m to the right" % flew.x)
 	# Capacity limit.
 	pollen.clear()
 	robot.reset_pose()
-	robot.set_pose_ftc(0, 0, 90)
+	robot.set_pose_ftc(-50, -50, 90)
 	robot.intake_front_power = 1.0
-	for i in 5:
-		pollen.spawn_ball(robot.global_position + Vector3((i - 2) * 0.03, pollen.radius + i * 0.09, -(robot.length / 2.0 + 0.045)))
+	for i in 6:
+		pollen.spawn_ball(robot.global_position + Vector3((i - 2.5) * 0.03, pollen.radius + i * 0.09, -(robot.length / 2.0 + 0.045)))
 		await steps(40)
-	check("robot holds no more than its capacity", robot.held_total() == 3, "holding %d" % robot.held_total())
+	check("one feeder holds no more than its capacity", robot.held_total() == 2, "holding %d" % robot.held_total())
 	robot.intake_front_power = -1.0
-	await steps(150)
-	check("reverse spits the balls back out", robot.held_total() == 0 and pollen.ball_count() == 5, "%d on field" % pollen.ball_count())
+	await steps(200)
+	check("reverse spits the balls back out", robot.held_total() == 0 and pollen.ball_count() == 6, "%d on field" % pollen.ball_count())
 	robot.intake_front_power = 0.0
-	# Goal counts a ball dropped into it.
+	# Hive cell counts a ball dropped into it.
 	pollen.clear()
-	pollen.spawn_ball(main.field.goal_area.global_position + Vector3(0, 0.6, 0))
+	var cell_area = main.field.cells[0]["area"]
+	pollen.spawn_ball(cell_area.global_position + Vector3(0, 0.4, 0))
+	await steps(180)
+	check("hive cell counts a ball", cell_area.get_overlapping_bodies().size() == 1)
+	# A deployed lever against a flower releases its pollen.
+	main.field.reset_elements(pollen)
+	var before: int = pollen.ball_count()
+	var fl = main.field.flowers[2]  # the flower on the left (red) wall
+	robot.set_pose_ftc(fl["pos"].x / IN + (robot.length / 2.0 + 0.17) / IN, -fl["pos"].z / IN, 0)
 	await steps(120)
-	check("placeholder goal counts a ball", pollen.scored == 1)
+	check("flower keeps its pollen while the lever is stowed", fl["count"] == 4 and pollen.ball_count() == before)
+	robot.lever_back_servo = 1.0
+	await steps(360)
+	check("deployed lever empties the flower", fl["count"] == 0 and pollen.ball_count() == before + 4, "flower %d, +%d balls" % [fl["count"], pollen.ball_count() - before])
 	pollen.clear()
 	robot.reset_pose()
 	await steps(5)
@@ -132,12 +158,12 @@ func _run() -> void:
 	# Field-centric: robot facing left, stick forward must still drive away from the driver.
 	robot.reset_pose()
 	teleop.reset_field_heading()
-	robot.set_pose_ftc(0, 0, 180)
+	robot.set_pose_ftc(-50, -50, 180)
 	teleop.field_centric = true
 	robot.wheel_powers = teleop.compute_powers(1, 0, 0)
 	await steps(120)
 	p = robot.get_pose_ftc()
-	check("field-centric forward = away from driver", p.y > 20 and absf(p.x) < 0.5, str(p))
+	check("field-centric forward = away from driver", p.y > -30 and absf(p.x + 50) < 0.5, str(p))
 	teleop.field_centric = false
 
 	# Match clock.

@@ -26,13 +26,12 @@ func _ready() -> void:
 	pollen = PollenScript.new()
 	pollen.name = "Pollen"
 	add_child(pollen)
-	pollen.spawn_placeholder_layout(field.size)
-	if field.goal_area:
-		field.goal_area.body_entered.connect(pollen.on_goal_entered)
+	field.reset_elements(pollen)
 	robot = RobotScript.new()
 	robot.name = "Robot"
 	robot.pollen = pollen
 	add_child(robot)
+	robot.preload_pollen()
 	match_timer = TimerScript.new()
 	match_timer.name = "MatchTimer"
 	add_child(match_timer)
@@ -64,11 +63,12 @@ func _build_world() -> void:
 
 func _build_cameras() -> void:
 	var half: float = field.size / 2.0
-	# Standing behind the wall the robot starts next to, looking across the field.
+	# Standing behind our alliance wall (red = left, blue = right), looking across the field.
+	var side := 1.0 if str(Config.value("driver.alliance", "red")) == "blue" else -1.0
 	var driver := Camera3D.new()
 	driver.fov = 50.0
 	add_child(driver)
-	driver.look_at_from_position(Vector3(0, 1.7, half + 1.9), Vector3(0, 0, -0.35))
+	driver.look_at_from_position(Vector3(side * (half + 1.9), 1.7, 0), Vector3(-side * 0.35, 0, 0))
 	var top := Camera3D.new()
 	top.projection = Camera3D.PROJECTION_ORTHOGONAL
 	top.size = field.size * 1.12
@@ -121,7 +121,7 @@ func _process(_dt: float) -> void:
 		"flywheel_rpm": robot.flywheel_rpm(),
 		"flywheel_on": teleop.flywheel_on,
 		"hood_deg": robot.hood_deg,
-		"scored": pollen.scored,
+		"hive": "red up %d low %d   blue up %d low %d" % [field.cell_count("red", true), field.cell_count("red", false), field.cell_count("blue", true), field.cell_count("blue", false)],
 		"turret_deg": robot.turret_deg,
 		"turret_half_range": robot.turret_range_deg() / 2.0,
 		"lever_front_deg": robot.lever_front_deg,
@@ -132,14 +132,15 @@ func _process(_dt: float) -> void:
 
 func _physics_process(_dt: float) -> void:
 	robot.enabled = match_timer.driver_enabled()
+	field.update_flowers(robot, pollen, _dt)
 
 func reset_all() -> void:
 	match_timer.reset()
 	robot.reset_pose()
 	teleop.reset_field_heading()
 	teleop.flywheel_on = false
-	pollen.clear()
-	pollen.spawn_placeholder_layout(field.size)
+	field.reset_elements(pollen)
+	robot.preload_pollen()
 
 func reload_config() -> void:
 	Config.load_config()

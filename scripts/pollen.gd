@@ -9,13 +9,28 @@ var _mesh: SphereMesh
 var _shape: SphereShape3D
 var _material: StandardMaterial3D
 var _physics: PhysicsMaterial
+var _ang_damp := 0.6
 
 func _ready() -> void:
 	apply_config()
 
 func apply_config() -> void:
-	radius = Config.inches("pollen.diameter_in", 3.0) / 2.0
-	mass_kg = Config.num("pollen.mass_g", 75.0) / 1000.0
+	radius = Config.inches("pollen.diameter_in", 2.8) / 2.0
+	mass_kg = Config.num("pollen.mass_g", 12.5) / 1000.0
+	var bounce := 0.45
+	var friction := 0.6
+	var ang_damp := 0.6
+	# Prefer the real numbers from the field data when present.
+	if FileAccess.file_exists("res://data/game_elements.json"):
+		var parsed = JSON.parse_string(FileAccess.get_file_as_string("res://data/game_elements.json"))
+		if parsed is Dictionary and parsed.get("types", {}).has("pollen"):
+			var t: Dictionary = parsed["types"]["pollen"]
+			radius = float(t.get("size_in", 2.8)) * Config.IN / 2.0
+			mass_kg = float(t.get("weight_g", 12.5)) / 1000.0
+			bounce = float(t.get("bounce", 0.25)) * 2.0  # the data adds the bounce of both bodies
+			friction = float(t.get("friction", 0.3))
+			ang_damp = float(t.get("angular_damp", 3.0))
+	_ang_damp = ang_damp
 	_mesh = SphereMesh.new()
 	_mesh.radius = radius
 	_mesh.height = radius * 2.0
@@ -27,8 +42,8 @@ func apply_config() -> void:
 	_material.albedo_color = Color(1.0, 0.8, 0.1)
 	_material.roughness = 0.6
 	_physics = PhysicsMaterial.new()
-	_physics.bounce = 0.45
-	_physics.friction = 0.6
+	_physics.bounce = bounce
+	_physics.friction = friction
 
 func ball_count() -> int:
 	return get_tree().get_nodes_in_group("pollen").size()
@@ -41,7 +56,7 @@ func spawn_ball(pos: Vector3, vel := Vector3.ZERO, ignore: PhysicsBody3D = null)
 	b.collision_mask = 3
 	b.continuous_cd = true
 	b.linear_damp = 0.05
-	b.angular_damp = 0.6
+	b.angular_damp = _ang_damp
 	var cs := CollisionShape3D.new()
 	cs.shape = _shape
 	b.add_child(cs)
@@ -73,25 +88,3 @@ func clear() -> void:
 	for b in get_tree().get_nodes_in_group("pollen"):
 		remove_ball(b)
 	scored = 0
-
-## Placeholder starting layout: rows of balls across the middle of the field.
-func spawn_placeholder_layout(field_size: float) -> void:
-	var n := int(Config.num("pollen.count", 24))
-	var per_row := 6
-	var gap := field_size / (per_row + 1)
-	for i in n:
-		var col := i % per_row
-		var row := i / per_row
-		var x := -field_size / 2.0 + gap * (col + 1)
-		var z := -0.15 - row * 0.35
-		spawn_ball(Vector3(x, radius + 0.002, z))
-
-func on_goal_entered(body: Node) -> void:
-	if body.is_in_group("pollen") and not body.has_meta("scored"):
-		body.set_meta("scored", true)
-		scored += 1
-		var id := body.get_instance_id()
-		get_tree().create_timer(1.5, false, true).timeout.connect(func():
-			var bb = instance_from_id(id)
-			if bb != null and not bb.is_queued_for_deletion():
-				remove_ball(bb))

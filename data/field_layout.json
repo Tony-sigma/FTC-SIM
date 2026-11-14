@@ -1,0 +1,141 @@
+{
+	"_info": "BEE 2026-27, din Competition Manual TU02 (cap. 9-10). Coordonate in inch, (0,0) = colt stanga-sus, publicul (Audience) e jos, ROSU stanga, ALBASTRU dreapta.",
+	"zones": [
+		{
+			"name": "LOADING ZONE rosu",
+			"kind": "loading",
+			"alliance": "red",
+			"color": "#e03131",
+			"rect": [
+				0,
+				25,
+				11,
+				23
+			],
+			"filled": false
+		},
+		{
+			"name": "LOADING ZONE albastru",
+			"kind": "loading",
+			"alliance": "blue",
+			"color": "#3b5bdb",
+			"rect": [
+				133,
+				96,
+				11,
+				23
+			],
+			"filled": false
+		},
+		{
+			"name": "GARDEN rosu",
+			"kind": "garden",
+			"alliance": "red",
+			"color": "#e03131",
+			"rect": [
+				0,
+				142,
+				23,
+				2
+			],
+			"filled": true
+		},
+		{
+			"name": "GARDEN albastru",
+			"kind": "garden",
+			"alliance": "blue",
+			"color": "#3b5bdb",
+			"rect": [
+				121,
+				0,
+				23,
+				2
+			],
+			"filled": true
+		}
+	],
+	"flowers": [
+		{
+			"x": 48,
+			"y": 0,
+			"wall": "top",
+			"pollen": 4
+		},
+		{
+			"x": 144,
+			"y": 48,
+			"wall": "right",
+			"pollen": 4
+		},
+		{
+			"x": 0,
+			"y": 96,
+			"wall": "left",
+			"pollen": 4
+		},
+		{
+			"x": 96,
+			"y": 144,
+			"wall": "bottom",
+			"pollen": 4
+		}
+	],
+	"flower_radius_in": 3.3,
+	"frame_bars": [
+		{
+			"_info": "baza triunghiului stang al cadrului HIVE: cadrul are 49.46 in latime (exterior la exterior, 72 +/- 24.73) si 38.95 in adancime (fig. 9-8)",
+			"rect": [
+				47.27,
+				52.525,
+				1.5,
+				38.95
+			]
+		},
+		{
+			"_info": "baza triunghiului drept",
+			"rect": [
+				95.23,
+				52.525,
+				1.5,
+				38.95
+			]
+		}
+	],
+	"hives": [
+		{
+			"alliance": "red",
+			"color": "#e03131",
+			"x": 59.25,
+			"up_cell": "bottom"
+		},
+		{
+			"alliance": "blue",
+			"color": "#3b5bdb",
+			"x": 84.75,
+			"up_cell": "top"
+		}
+	],
+	"cell_size_in": [
+		20,
+		12.04
+	],
+	"cell_offset_in": 15.44,
+	"hive_tip": {
+		"_info": "Manualul nu da un numar exact. HIVE-ul se inclina cand greutatea din CELL-ul de sus atinge un prag aleator intre min si max (in grame; greutatile pieselor sunt in game_elements.json). La start sunt 3 NECTAR (~80 g) in CELL, deci primul TIP vine dupa 1-3 POLLEN sau 1 NECTAR. Viteza: cu cat piesele trec mai mult peste prag, cu atat se inclina mai repede (tip_time_s cand surplusul e cat un POLLEN, ~1/sqrt(surplus)).",
+		"threshold_min_g": 88,
+		"threshold_max_g": 112,
+		"tip_time_s": 0.8,
+		"min_tip_time_s": 0.3,
+		"spill_roll_in": [
+			2,
+			12
+		],
+		"_spill_info": "cat se rostogoleste fiecare piesa pe fundul CELL-ului (inclinat 30 grade) pana la gura, in inch: iese cu v = sqrt(10/7 g d sin30) = 23-58 in/s (field.gd _tip)",
+		"max_tip_time_s": 1.5,
+		"tip_reference_g": 12.5
+	},
+	"alliance_nectar": 5,
+	"flower_capacity_in": 17.5,
+	"cell_opening_half_angle_deg": 75,
+	"_cell_opening_info": "CELL-ul de sus e inclinat spre exterior (fig. 9-10): cel de jos se deschide spre public, cel de sus spre peretele din spate. O lansare intra doar daca vine din conul de 2 x 75 = 150 grade din fata deschiderii."
+}

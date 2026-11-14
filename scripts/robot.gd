@@ -130,8 +130,8 @@ func apply_config() -> void:
 	_build_intake_zones()
 
 func reset_pose() -> void:
-	set_pose_ftc(Config.num("robot.start_x_in", 0.0), Config.num("robot.start_y_in", -48.0),
-		Config.num("robot.start_heading_deg", 90.0))
+	set_pose_ftc(Config.num("robot.start_x_in", -58.0), Config.num("robot.start_y_in", -48.0),
+		Config.num("robot.start_heading_deg", 0.0))
 	for i in 4:
 		wheel_powers[i] = 0.0
 		wheel_angles[i] = 0.0
@@ -187,6 +187,26 @@ func _update_mechanisms(dt: float) -> void:
 	if _lever_nodes.size() == 2:
 		_lever_nodes[0].rotation.x = deg_to_rad(lever_front_deg) * _lever_signs[0]
 		_lever_nodes[1].rotation.x = deg_to_rad(lever_back_deg) * _lever_signs[1]
+
+## Load the robot with its starting pollen, split between the two feeders.
+func preload_pollen() -> void:
+	feeders = [[], []]
+	var n := mini(int(Config.num("intakes.preload", 0)), _total_cap)
+	for i in n:
+		var f: Array = feeders[i % 2]
+		if f.size() < _feeder_cap:
+			f.append(1.0 - 0.25 * f.size())
+
+## The outer edge of each deployed lever, as [end_a, end_b] in world space (for touching flowers).
+func deployed_lever_bars() -> Array:
+	var out: Array = []
+	var degs := [lever_front_deg, lever_back_deg]
+	for i in _lever_nodes.size():
+		if degs[i] < 60.0:
+			continue
+		var t: Transform3D = _lever_nodes[i].global_transform
+		out.append([t * Vector3(-width / 2.0, 0.19, 0), t * Vector3(width / 2.0, 0.19, 0)])
+	return out
 
 func held_count(feeder: int) -> int:
 	return feeders[feeder].size()
