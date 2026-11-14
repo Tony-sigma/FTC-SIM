@@ -72,13 +72,21 @@ The floor plan is the real BIOBUZZ one: it is read from `data/field_layout.json`
 the loading zones, gardens, the four flowers (4 pollen each), the hive frame, the red and blue hive
 cells, and where every pollen starts. The robot starts with 4 pollen loaded.
 
-Those files do not give heights or how things move, so these are **guesses** (in
-`robot_config.json` under `field`): flower and cell heights, a deployed lever held against a flower
-making it drop its pollen, and the hive's tip angle, timing and reset. Nectar is not modelled.
+The hive is the real AndyMark model (`cad/field/red_hive.glb`, slimmed by
+`tools/process_field.mjs` with `npm run field`; the blue hive is the same model recoloured). It is
+a seesaw: two tunnel-shaped cells on a centre pivot, each open at its outer end.
 
-**Hive rule:** when the raised cell of a hive holds 8 pollen it tips. The pollen inside at that
-moment are scored for that alliance; they then spill out and the cell comes back up. Pollen that
-left the cell before the tip do not count. The HUD shows balls per cell and the score.
+**Hive rule:** when the raised cell holds 8 pollen the seesaw tips. The pollen inside at that
+moment are scored for that alliance; they then roll out of the lowered cell and the other cell
+becomes the raised one. Pollen that left the cell before the tip do not count. The HUD shows the
+balls in each cell and the score.
+
+**Flowers:** a deployed lever held against a flower works as a wedge and the flower drops its
+pollen to the floor, one at a time. The flowers are still plain cylinders.
+
+Still **guesses** (in `robot_config.json` under `field`): the hive's pivot height, tilt angle and
+tip time, the flower height, and how close the lever must be. The hive frame is only its two base
+bars, robots are simply kept out of the hive's footprint, and nectar is not modelled.
 
 The driver stands behind the red wall (left) by default; set `driver.alliance` to `blue` to switch.
 

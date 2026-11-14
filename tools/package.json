@@ -2,7 +2,7 @@
   "name": "ftc-sim-tools",
   "private": true,
   "type": "module",
-  "scripts": { "cad": "node process_cad.mjs" },
+  "scripts": { "cad": "node process_cad.mjs", "field": "node process_field.mjs" },
   "dependencies": {
     "@gltf-transform/core": "^4.1.0",
     "@gltf-transform/extensions": "^4.1.0",

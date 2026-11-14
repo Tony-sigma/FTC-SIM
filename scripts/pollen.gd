@@ -53,7 +53,7 @@ func spawn_ball(pos: Vector3, vel := Vector3.ZERO, ignore: PhysicsBody3D = null)
 	b.mass = mass_kg
 	b.physics_material_override = _physics
 	b.collision_layer = 2
-	b.collision_mask = 3
+	b.collision_mask = 7  # floor/walls/robot, other pollen, hives
 	b.continuous_cd = true
 	b.linear_damp = 0.05
 	b.angular_damp = _ang_damp

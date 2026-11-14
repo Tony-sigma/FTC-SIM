@@ -30,7 +30,7 @@ func _run() -> void:
 	cfg.data["robot"]["start_y_in"] = -50.0
 	cfg.data["robot"]["start_heading_deg"] = 90.0
 	check("robot starts preloaded", robot.held_total() == 4, "holding %d" % robot.held_total())
-	check("field has 4 flowers and 4 hive cells", main.field.flowers.size() == 4 and main.field.cells.size() == 4)
+	check("field has 4 flowers and 2 hives", main.field.flowers.size() == 4 and main.field.hives.size() == 2)
 	check("starting pollen is on the field", main.pollen.ball_count() == 20, "%d balls" % main.pollen.ball_count())
 	robot.reset_pose()
 	await steps(2)
@@ -135,29 +135,21 @@ func _run() -> void:
 	await steps(200)
 	check("reverse spits the balls back out", robot.held_total() == 0 and pollen.ball_count() == 6, "%d on field" % pollen.ball_count())
 	robot.intake_front_power = 0.0
-	# Hive cell counts a ball dropped into it.
+	# Hive rule: 7 pollen do nothing, the 8th tips the seesaw and all 8 score.
 	pollen.clear()
-	var cell_area = main.field.cells[0]["area"]
-	pollen.spawn_ball(cell_area.global_position + Vector3(0, 0.4, 0))
-	await steps(180)
-	check("hive cell counts a ball", cell_area.get_overlapping_bodies().size() == 1)
-	# Hive rule: 7 pollen do nothing, the 8th tips the hive and all 8 score.
-	pollen.clear()
-	var up_cell = null
-	for c in main.field.cells:
-		if c["alliance"] == "red" and c["up"]:
-			up_cell = c
-	var drop: Vector3 = up_cell["area"].global_position
+	var hive: Dictionary = main.field.hive_of("red")
+	var up0: String = hive["up_side"]
+	var drop: Vector3 = hive["areas"][up0].global_position
 	for i in 7:
-		pollen.spawn_ball(drop + Vector3((i % 4 - 1.5) * 0.09, 0.25, (i / 4 - 0.5) * 0.1))
-		await steps(40)
+		pollen.spawn_ball(drop + Vector3((i % 4 - 1.5) * 0.08, 0.0, 0.0))
+		await steps(50)
 	await steps(120)
-	check("7 pollen in the hive: no tip, nothing scored", main.field.score["red"] == 0 and up_cell["state"] == "idle" and main.field.cell_count("red", true) == 7, "%d in cell" % main.field.cell_count("red", true))
-	pollen.spawn_ball(drop + Vector3(0, 0.25, 0))
+	check("7 pollen in the raised cell: no tip, nothing scored", main.field.score["red"] == 0 and hive["up_side"] == up0 and main.field.cell_count("red", true) == 7, "%d in cell" % main.field.cell_count("red", true))
+	pollen.spawn_ball(drop)
 	await steps(90)
-	check("8th pollen tips the hive and 8 are scored", main.field.score["red"] == 8 and main.field.tips["red"] == 1 and up_cell["state"] != "idle", "score %d" % main.field.score["red"])
-	await steps(480)
-	check("pollen spill out and the hive comes back up", main.field.cell_count("red", true) == 0 and up_cell["state"] == "idle" and pollen.ball_count() == 8, "%d left in cell" % main.field.cell_count("red", true))
+	check("8th pollen tips the hive and 8 are scored", main.field.score["red"] == 8 and main.field.tips["red"] == 1 and hive["up_side"] != up0, "score %d" % main.field.score["red"])
+	await steps(600)
+	check("pollen roll out of the lowered cell", main.field.cell_count("red", false) == 0 and pollen.ball_count() == 8, "%d left in cell" % main.field.cell_count("red", false))
 	check("blue score is untouched", main.field.score["blue"] == 0)
 	# A deployed lever against a flower releases its pollen.
 	main.field.reset_elements(pollen)
