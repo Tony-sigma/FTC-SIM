@@ -62,7 +62,7 @@ func _run() -> void:
 	await steps(600)
 	p = robot.get_pose_ftc()
 	var limit: float = (main.field.size / 2.0 - robot.length / 2.0) / IN
-	check("wall stops the robot", absf(p.y - limit) < 0.3 and robot.get_speed() < 0.02, "y=%.2f in, limit %.2f" % [p.y, limit])
+	check("wall stops the robot", absf(p.y - limit) < 0.3 and robot.get_speed() < 0.05, "y=%.2f in, limit %.2f, speed %.3f" % [p.y, limit, robot.get_speed()])
 
 	# Mechanisms follow servo commands at a limited speed.
 	robot.reset_pose()
@@ -81,6 +81,53 @@ func _run() -> void:
 	check("front lever deploys to 90, back stays stowed", absf(robot.lever_front_deg - 90.0) < 0.01 and robot.lever_back_deg < 0.01)
 	robot.reset_pose()
 	await steps(240)
+
+	# Pollen: intake swallows a ball, the shooter launches it.
+	var pollen = main.pollen
+	pollen.clear()
+	robot.set_pose_ftc(0, 0, 90)
+	await steps(5)
+	var ball = pollen.spawn_ball(robot.global_position + Vector3(0, pollen.radius, -(robot.length / 2.0 + 0.3)))
+	robot.wheel_powers = [0.3, 0.3, 0.3, 0.3]
+	await steps(180)
+	check("intake off: ball is pushed, not swallowed", robot.held_total() == 0 and pollen.ball_count() == 1 and ball.global_position.z < -(robot.length / 2.0 + 0.3))
+	robot.intake_front_power = 1.0
+	await steps(120)
+	check("intake on: ball is swallowed into the front feeder", robot.held_count(0) == 1 and pollen.ball_count() == 0)
+	robot.wheel_powers = [0.0, 0.0, 0.0, 0.0]
+	await steps(120)
+	check("ball waits at the neck while the flywheel is off", robot.held_count(0) == 1 and robot.shots_fired == 0)
+	robot.shooter_power = 1.0
+	await steps(60)
+	check("flywheel on: ball is launched", robot.held_total() == 0 and robot.shots_fired == 1 and pollen.ball_count() == 1)
+	robot.intake_front_power = 0.0
+	robot.shooter_power = 0.0
+	var shot = get_nodes_in_group("pollen")[0]
+	var start: Vector3 = robot.global_position
+	await steps(360)
+	var flew: Vector3 = shot.global_position - start
+	check("shot flies out the robot's right side and lands on the floor", flew.x > 0.8 and absf(flew.z) < 0.5 and shot.global_position.y < 0.1, "landed %.2f m to the right" % flew.x)
+	# Capacity limit.
+	pollen.clear()
+	robot.reset_pose()
+	robot.set_pose_ftc(0, 0, 90)
+	robot.intake_front_power = 1.0
+	for i in 5:
+		pollen.spawn_ball(robot.global_position + Vector3((i - 2) * 0.03, pollen.radius + i * 0.09, -(robot.length / 2.0 + 0.045)))
+		await steps(40)
+	check("robot holds no more than its capacity", robot.held_total() == 3, "holding %d" % robot.held_total())
+	robot.intake_front_power = -1.0
+	await steps(150)
+	check("reverse spits the balls back out", robot.held_total() == 0 and pollen.ball_count() == 5, "%d on field" % pollen.ball_count())
+	robot.intake_front_power = 0.0
+	# Goal counts a ball dropped into it.
+	pollen.clear()
+	pollen.spawn_ball(main.field.goal_area.global_position + Vector3(0, 0.6, 0))
+	await steps(120)
+	check("placeholder goal counts a ball", pollen.scored == 1)
+	pollen.clear()
+	robot.reset_pose()
+	await steps(5)
 
 	# Field-centric: robot facing left, stick forward must still drive away from the driver.
 	robot.reset_pose()

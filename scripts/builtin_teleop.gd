@@ -14,6 +14,8 @@ var _deadzone := 0.05
 var _slow_scale := 0.4
 var _turn_scale := 1.0
 var _turret_rate := 0.6
+var _hood_rate := 0.8
+var flywheel_on := false
 
 func _ready() -> void:
 	apply_config()
@@ -24,6 +26,7 @@ func apply_config() -> void:
 	_slow_scale = Config.num("driver.slow_mode_scale", 0.4)
 	_turn_scale = Config.num("driver.turn_scale", 1.0)
 	_turret_rate = Config.num("driver.turret_nudge_per_s", 0.6)
+	_hood_rate = Config.num("driver.hood_nudge_per_s", 0.8)
 
 func gamepad_id() -> int:
 	var pads := Input.get_connected_joypads()
@@ -49,7 +52,7 @@ func _key_axis(neg: Key, pos: Key) -> float:
 func read_sticks() -> Array[float]:
 	var f := _key_axis(KEY_S, KEY_W)
 	var s := _key_axis(KEY_A, KEY_D)
-	var t := _key_axis(KEY_Q, KEY_E) + _key_axis(KEY_LEFT, KEY_RIGHT)
+	var t := _key_axis(KEY_Q, KEY_E)
 	slow = Input.is_physical_key_pressed(KEY_SHIFT)
 	var id := gamepad_id()
 	if id >= 0:
@@ -82,6 +85,18 @@ func read_turret() -> float:
 		t += (1.0 if Input.is_joy_button_pressed(id, JOY_BUTTON_DPAD_LEFT) else 0.0) - (1.0 if Input.is_joy_button_pressed(id, JOY_BUTTON_DPAD_RIGHT) else 0.0)
 	return clampf(t, -1.0, 1.0)
 
+func _pad_btn(b: JoyButton) -> float:
+	var id := gamepad_id()
+	return 1.0 if id >= 0 and Input.is_joy_button_pressed(id, b) else 0.0
+
+func _pad_axis(a: JoyAxis) -> float:
+	var id := gamepad_id()
+	return Input.get_joy_axis(id, a) if id >= 0 else 0.0
+
+func toggle_flywheel() -> void:
+	if active and robot.enabled:
+		flywheel_on = not flywheel_on
+
 func toggle_lever(front: bool) -> void:
 	if not active or not robot.enabled:
 		return
@@ -95,5 +110,17 @@ func _physics_process(dt: float) -> void:
 		return
 	if robot.enabled:
 		robot.turret_servo = clampf(robot.turret_servo + read_turret() * _turret_rate * dt, 0.0, 1.0)
+		# Hood: D-pad up/down or arrow keys.
+		var hood := _key_axis(KEY_DOWN, KEY_UP) + _pad_btn(JOY_BUTTON_DPAD_UP) - _pad_btn(JOY_BUTTON_DPAD_DOWN)
+		robot.hood_servo = clampf(robot.hood_servo + hood * _hood_rate * dt, 0.0, 1.0)
+		# Intakes: right trigger = front (A side), left trigger = back. Hold Ctrl / right-stick click to reverse.
+		var rev := -1.0 if (Input.is_physical_key_pressed(KEY_CTRL) or _pad_btn(JOY_BUTTON_RIGHT_STICK) > 0.0) else 1.0
+		var front := maxf(_pad_axis(JOY_AXIS_TRIGGER_RIGHT), 1.0 if Input.is_physical_key_pressed(KEY_I) else 0.0)
+		var back := maxf(_pad_axis(JOY_AXIS_TRIGGER_LEFT), 1.0 if Input.is_physical_key_pressed(KEY_K) else 0.0)
+		robot.intake_front_power = front * rev
+		robot.intake_back_power = back * rev
+		robot.shooter_power = 1.0 if flywheel_on else 0.0
+	else:
+		flywheel_on = false
 	var in_ := read_sticks()
 	robot.wheel_powers = compute_powers(in_[0], in_[1], in_[2])

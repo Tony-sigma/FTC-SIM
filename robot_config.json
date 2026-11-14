@@ -6,13 +6,49 @@
     "drivetrain.motor_rpm / ticks_per_rev / external_gear_ratio",
     "drivetrain.loaded_speed_fraction / strafe_efficiency / accel limits (tune against the real robot)",
     "match.transition_s (check the BIOBUZZ manual)",
-    "field.* (check the BIOBUZZ field drawings)"
+    "field.* (check the BIOBUZZ field drawings); field.placeholder_goal is invented",
+    "pollen.* (ball weight, how many, where they start)",
+    "intakes.* and shooter.* (speeds, capacity, how balls are held and released)"
   ],
 
   "field": {
     "size_in": 141.24,
     "tile_in": 23.54,
-    "wall_height_in": 12.0
+    "wall_height_in": 12.0,
+    "placeholder_goal": { "x_in": -58.0, "y_in": 0.0, "size_in": 22.0, "height_in": 16.0 }
+  },
+
+  "pollen": {
+    "diameter_in": 3.0,
+    "mass_g": 75.0,
+    "count": 24
+  },
+
+  "intakes": {
+    "_note": "One motor per intake + its feeder. Front = side A (plain Intake in the CAD), back = Intake-Mirrored. Both feeders lead into the shared neck under the shooter.",
+    "motor_names": ["intakeA", "intakeB"],
+    "motor_rpm": 6000.0,
+    "mouth_width_in": 8.5,
+    "feeder_capacity": 3,
+    "total_capacity": 3,
+    "feeder_transit_s": 0.5
+  },
+
+  "shooter": {
+    "_note": "Two motors on one flywheel. A ball waiting at the neck is launched when its intake/feeder motor runs AND the flywheel is spinning.",
+    "motor_names": ["shooterLeft", "shooterRight"],
+    "hood_servo_name": "hoodServo",
+    "flywheel_max_rpm": 3000.0,
+    "flywheel_diameter_in": 4.0,
+    "exit_speed_fraction": 0.35,
+    "spin_up_time_s": 0.6,
+    "speed_drop_per_shot": 0.25,
+    "min_speed_fraction_to_shoot": 0.2,
+    "shot_interval_s": 0.25,
+    "hood_min_deg": 30.0,
+    "hood_max_deg": 60.0,
+    "hood_speed_deg_per_s": 90.0,
+    "exit_offset_m": [0.1, 0.5, 0.0]
   },
 
   "match": {
@@ -69,6 +105,7 @@
 
   "driver": {
     "turret_nudge_per_s": 0.6,
+    "hood_nudge_per_s": 0.8,
     "stick_deadzone": 0.05,
     "slow_mode_scale": 0.4,
     "turn_scale": 1.0,

@@ -6,12 +6,14 @@ const FieldScript := preload("res://scripts/field.gd")
 const TeleopScript := preload("res://scripts/builtin_teleop.gd")
 const TimerScript := preload("res://scripts/match_timer.gd")
 const HudScript := preload("res://scripts/hud.gd")
+const PollenScript := preload("res://scripts/pollen.gd")
 
 var field
 var robot
 var teleop
 var match_timer
 var hud
+var pollen
 
 var _cams: Array[Camera3D] = []
 var _cam_names := ["Driver station", "Top-down", "Chase"]
@@ -21,8 +23,15 @@ func _ready() -> void:
 	_build_world()
 	field = FieldScript.new()
 	add_child(field)
+	pollen = PollenScript.new()
+	pollen.name = "Pollen"
+	add_child(pollen)
+	pollen.spawn_placeholder_layout(field.size)
+	if field.goal_area:
+		field.goal_area.body_entered.connect(pollen.on_goal_entered)
 	robot = RobotScript.new()
 	robot.name = "Robot"
+	robot.pollen = pollen
 	add_child(robot)
 	match_timer = TimerScript.new()
 	match_timer.name = "MatchTimer"
@@ -107,6 +116,12 @@ func _process(_dt: float) -> void:
 		"max_speed_in": robot.max_forward_speed() / Config.IN,
 		"camera": _cam_names[_cam_index],
 		"gamepad": teleop.gamepad_name(),
+		"held_front": robot.held_count(0),
+		"held_back": robot.held_count(1),
+		"flywheel_rpm": robot.flywheel_rpm(),
+		"flywheel_on": teleop.flywheel_on,
+		"hood_deg": robot.hood_deg,
+		"scored": pollen.scored,
 		"turret_deg": robot.turret_deg,
 		"turret_half_range": robot.turret_range_deg() / 2.0,
 		"lever_front_deg": robot.lever_front_deg,
@@ -122,9 +137,13 @@ func reset_all() -> void:
 	match_timer.reset()
 	robot.reset_pose()
 	teleop.reset_field_heading()
+	teleop.flywheel_on = false
+	pollen.clear()
+	pollen.spawn_placeholder_layout(field.size)
 
 func reload_config() -> void:
 	Config.load_config()
+	pollen.apply_config()
 	robot.apply_config()
 	teleop.apply_config()
 	match_timer.apply_config()
@@ -148,12 +167,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_1: teleop.toggle_lever(true)
 			KEY_2: teleop.toggle_lever(false)
 			KEY_V: robot.toggle_shell()
+			KEY_G: teleop.toggle_flywheel()
 	elif event is InputEventJoypadButton and event.pressed:
 		match event.button_index:
 			JOY_BUTTON_Y: teleop.field_centric = not teleop.field_centric
 			JOY_BUTTON_X: teleop.reset_field_heading()
 			JOY_BUTTON_START: match_timer.start_teleop_only()
 			JOY_BUTTON_BACK: reset_all()
-			JOY_BUTTON_RIGHT_SHOULDER: _next_camera()
+			JOY_BUTTON_RIGHT_SHOULDER: teleop.toggle_flywheel()
+			JOY_BUTTON_LEFT_STICK: _next_camera()
 			JOY_BUTTON_A: teleop.toggle_lever(true)
 			JOY_BUTTON_B: teleop.toggle_lever(false)

@@ -12,17 +12,21 @@ Driver practice and (later) real-OpMode testing for our FTC robot.
 | Action | Gamepad | Keyboard |
 |---|---|---|
 | Drive / strafe | Left stick | W A S D |
-| Turn | Right stick X | Q / E or ← / → |
+| Turn | Right stick X | Q / E |
 | Slow mode (hold) | Left bumper | Shift |
 | Robot-centric ↔ field-centric | Y | F |
 | Reset field-centric "forward" to where the robot faces now | X | H |
 | Start a 2:00 driver-controlled match | Start | Enter |
 | Start a full match (30 s auto → transition → 2:00) | – | M |
+| Front intake (side A) / back intake (hold) | Right trigger / left trigger | I / K |
+| Reverse the intakes (hold with the above) | Right-stick click | Ctrl |
+| Shooter flywheel on / off | Right bumper | G |
+| Hood up / down | D-pad ↑ / ↓ | ↑ / ↓ |
 | Turret left / right | D-pad ← / → | Z / X |
 | Front lever / back lever (toggle) | A / B | 1 / 2 |
 | Show the collision box | – | V |
 | Reset robot + clock | Back | R |
-| Next camera (driver station / top-down / chase) | Right bumper | C |
+| Next camera (driver station / top-down / chase) | Left-stick click | C |
 | Reload `robot_config.json` | – | F5 |
 
 With no match running you are in free practice (no clock).
@@ -53,6 +57,19 @@ The turret follows a servo position (0..1) through the 15:70 gears, so a 300° s
 Levers go 0° (stowed) to 90° (deployed). Both move at a limited speed set in the config.
 Known limit: deployed levers do not collide with anything yet; only the chassis box does.
 
+## Pollen, intakes and shooter
+- **Pollen** are real physics balls (3 in). The robot pushes them around; they never block it.
+- **Intakes:** a ball touching an intake mouth while that intake motor runs is swallowed into
+  that side's feeder. The robot holds at most `intakes.total_capacity` balls.
+- **Feeders and shooter:** each intake motor also runs its feeder, carrying balls up to the shared
+  neck. A ball at the neck waits there until the flywheel is spinning *and* its intake motor
+  runs; then it is launched out of the turret's Limelight side at the hood angle. Each shot
+  slows the flywheel a little.
+- **Goal:** the green bin is an invented stand-in so there is something to shoot at. The pollen
+  starting layout is also invented. Both go away when the real field is added.
+
+All speeds, capacities and angles here are placeholders in `robot_config.json`.
+
 ## How the driving works
 `scripts/robot.gd` takes four wheel powers (-1..1, like `motor.setPower()`), converts them to a
 chassis velocity with the mecanum equations, applies acceleration limits, and moves a collision
@@ -71,7 +88,7 @@ godot --headless -s tests/test_drive.gd
 ## Roadmap
 1. ✅ Driver practice MVP
 2. ✅ Real robot CAD model (turret + lever pivots)
-3. Pollen, intakes, turret/lever controls
+3. ✅ Pollen, intakes, shooter, turret/lever controls (field elements still placeholders)
 4. Java sim SDK + WebSocket bridge (run real OpModes)
 5. Odometry + IMU, sample autonomous
 6. Limelight sim

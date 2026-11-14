@@ -41,6 +41,36 @@ var lever_front_deg := 0.0
 var lever_back_deg := 0.0
 var has_cad_model := false
 
+## Game-piece mechanisms, commanded like motors/servos.
+var intake_front_power := 0.0   # -1..1, + = pull balls in and feed them up
+var intake_back_power := 0.0
+var shooter_power := 0.0        # 0..1
+var hood_servo := 0.5           # 0..1 -> launch angle
+var hood_deg := 45.0
+var flywheel_fraction := 0.0    # actual flywheel speed, 0..1 of max
+var flywheel_max_rpm := 3000.0
+var shots_fired := 0
+## Balls inside each feeder: progress 0 (just swallowed) .. 1 (waiting at the neck).
+var feeders: Array = [[], []]
+var pollen  # scripts/pollen.gd, set by main
+
+var _feeder_cap := 3
+var _total_cap := 3
+var _transit_s := 0.5
+var _mouth_width := 0.216
+var _exit_speed_max := 5.6
+var _spin_tau := 0.6
+var _shot_drop := 0.25
+var _min_shoot := 0.2
+var _shot_interval := 0.25
+var _hood_min := 30.0
+var _hood_max := 60.0
+var _hood_speed := 90.0
+var _exit_offset := Vector3(0.1, 0.5, 0.0)
+var _shot_cooldown := 0.0
+var _spit_cooldown := 0.0
+var _zones: Array[Area3D] = []
+
 var _turret_range_deg := 64.3
 var _turret_speed := 85.0
 var _lever_stowed := 0.0
@@ -56,6 +86,8 @@ var _lever_nodes: Array[Node3D] = []
 
 func _ready() -> void:
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
+	collision_layer = 1
+	collision_mask = 1  # walls only; pollen (layer 2) never blocks the robot, the robot pushes it
 	apply_config()
 	reset_pose()
 
@@ -80,7 +112,22 @@ func apply_config() -> void:
 	_lever_deployed = Config.num("levers.deployed_deg", 90.0)
 	_lever_speed = Config.num("levers.speed_deg_per_s", 240.0)
 	_lever_signs = [Config.num("levers.front_deploy_sign", -1.0), Config.num("levers.back_deploy_sign", 1.0)]
+	_feeder_cap = int(Config.num("intakes.feeder_capacity", 3))
+	_total_cap = int(Config.num("intakes.total_capacity", 3))
+	_transit_s = Config.num("intakes.feeder_transit_s", 0.5)
+	_mouth_width = Config.inches("intakes.mouth_width_in", 8.5)
+	flywheel_max_rpm = Config.num("shooter.flywheel_max_rpm", 3000.0)
+	_exit_speed_max = flywheel_max_rpm / 60.0 * PI * Config.inches("shooter.flywheel_diameter_in", 4.0) * Config.num("shooter.exit_speed_fraction", 0.35)
+	_spin_tau = Config.num("shooter.spin_up_time_s", 0.6)
+	_shot_drop = Config.num("shooter.speed_drop_per_shot", 0.25)
+	_min_shoot = Config.num("shooter.min_speed_fraction_to_shoot", 0.2)
+	_shot_interval = Config.num("shooter.shot_interval_s", 0.25)
+	_hood_min = Config.num("shooter.hood_min_deg", 30.0)
+	_hood_max = Config.num("shooter.hood_max_deg", 60.0)
+	_hood_speed = Config.num("shooter.hood_speed_deg_per_s", 90.0)
+	_exit_offset = _vec("shooter.exit_offset_m", Vector3(0.1, 0.5, 0.0))
 	_build_body()
+	_build_intake_zones()
 
 func reset_pose() -> void:
 	set_pose_ftc(Config.num("robot.start_x_in", 0.0), Config.num("robot.start_y_in", -48.0),
@@ -91,6 +138,13 @@ func reset_pose() -> void:
 	turret_servo = 0.5
 	lever_front_servo = 0.0
 	lever_back_servo = 0.0
+	intake_front_power = 0.0
+	intake_back_power = 0.0
+	shooter_power = 0.0
+	hood_servo = 0.5
+	flywheel_fraction = 0.0
+	shots_fired = 0
+	feeders = [[], []]
 
 func set_pose_ftc(x_in: float, y_in: float, heading_deg: float) -> void:
 	position = Vector3(x_in * Config.IN, 0.0, -y_in * Config.IN)
@@ -134,8 +188,87 @@ func _update_mechanisms(dt: float) -> void:
 		_lever_nodes[0].rotation.x = deg_to_rad(lever_front_deg) * _lever_signs[0]
 		_lever_nodes[1].rotation.x = deg_to_rad(lever_back_deg) * _lever_signs[1]
 
+func held_count(feeder: int) -> int:
+	return feeders[feeder].size()
+
+func held_total() -> int:
+	return feeders[0].size() + feeders[1].size()
+
+func flywheel_rpm() -> float:
+	return flywheel_fraction * flywheel_max_rpm
+
+func _build_intake_zones() -> void:
+	for z in _zones:
+		z.queue_free()
+	_zones.clear()
+	# A slot just outside each end of the chassis; a ball touching it while the intake runs is swallowed.
+	for sgn in [-1.0, 1.0]:
+		var area := Area3D.new()
+		area.collision_layer = 0
+		area.collision_mask = 2
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(_mouth_width, 0.1, 0.06)
+		cs.shape = box
+		area.add_child(cs)
+		area.position = Vector3(0, 0.05, sgn * (length / 2.0 + 0.012))
+		add_child(area)
+		_zones.append(area)
+
+func _update_game_pieces(dt: float) -> void:
+	var powers := [intake_front_power if enabled else 0.0, intake_back_power if enabled else 0.0]
+	# Flywheel spins up/down toward the commanded power.
+	var target := clampf(shooter_power, 0.0, 1.0) if enabled else 0.0
+	flywheel_fraction += (target - flywheel_fraction) * (1.0 - exp(-dt / maxf(_spin_tau / 3.0, 0.001)))
+	hood_deg = move_toward(hood_deg, lerpf(_hood_min, _hood_max, clampf(hood_servo, 0.0, 1.0)), _hood_speed * dt)
+	_shot_cooldown = maxf(_shot_cooldown - dt, 0.0)
+	_spit_cooldown = maxf(_spit_cooldown - dt, 0.0)
+
+	for i in 2:
+		var power: float = clampf(powers[i], -1.0, 1.0)
+		var balls: Array = feeders[i]
+		# Swallow balls touching the intake mouth.
+		if power > 0.1 and pollen != null:
+			for body in _zones[i].get_overlapping_bodies():
+				if balls.size() >= _feeder_cap or held_total() >= _total_cap:
+					break
+				if body.is_in_group("pollen") and not body.is_queued_for_deletion():
+					pollen.remove_ball(body)
+					balls.append(0.0)
+		# Carry balls up the feeder; they queue behind each other.
+		if power > 0.1:
+			for k in balls.size():
+				balls[k] = minf(balls[k] + power * dt / _transit_s, 1.0 - 0.25 * k)
+			# Ball at the neck + flywheel spinning = shot.
+			if balls.size() > 0 and balls[0] >= 1.0 and flywheel_fraction >= _min_shoot and _shot_cooldown <= 0.0:
+				balls.pop_front()
+				_launch()
+		elif power < -0.1 and balls.size() > 0 and _spit_cooldown <= 0.0:
+			# Reverse: spit the newest ball back out of the intake.
+			balls.pop_back()
+			_spit_cooldown = 0.3
+			if pollen != null:
+				var sgn := -1.0 if i == 0 else 1.0
+				var out := global_transform.basis.z * sgn
+				pollen.spawn_ball(global_position + out * (length / 2.0 + 0.09) + Vector3(0, 0.05, 0), velocity + out * 1.0, self)
+
+func _launch() -> void:
+	_shot_cooldown = _shot_interval
+	shots_fired += 1
+	var speed := _exit_speed_max * flywheel_fraction
+	flywheel_fraction *= 1.0 - _shot_drop
+	if pollen == null:
+		return
+	# The shooter points along the turret's +X (the Limelight side), tilted up by the hood angle.
+	var turret_basis := global_transform.basis * Basis(Vector3.UP, deg_to_rad(turret_deg))
+	var a := deg_to_rad(hood_deg)
+	var dir := (turret_basis.x * cos(a) + Vector3.UP * sin(a)).normalized()
+	var pos := global_position + turret_basis * _exit_offset
+	pollen.spawn_ball(pos, velocity + dir * speed, self)
+
 func _physics_process(dt: float) -> void:
 	_update_mechanisms(dt)
+	_update_game_pieces(dt)
 	var p: Array[float] = [0.0, 0.0, 0.0, 0.0]
 	if enabled:
 		for i in 4:

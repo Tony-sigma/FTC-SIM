@@ -4,6 +4,7 @@ extends Node3D
 
 var size := 3.5875
 var wall_height := 0.3048
+var goal_area: Area3D
 
 func _ready() -> void:
 	size = Config.inches("field.size_in", 141.24)
@@ -36,6 +37,39 @@ func _ready() -> void:
 	_wall(Vector3(size + 2 * t, wall_height, t), Vector3(0, wall_height / 2.0, h))
 	_wall(Vector3(t, wall_height, size), Vector3(-h, wall_height / 2.0, 0))
 	_wall(Vector3(t, wall_height, size), Vector3(h, wall_height / 2.0, 0))
+	_build_placeholder_goal()
+
+## Invented stand-in for a scoring goal: an open-top bin. Replace once the field CAD arrives.
+func _build_placeholder_goal() -> void:
+	var g = Config.value("field.placeholder_goal", null)
+	if not g is Dictionary:
+		return
+	var sz: float = float(g.get("size_in", 22.0)) * Config.IN
+	var h: float = float(g.get("height_in", 16.0)) * Config.IN
+	var c := Vector3(float(g.get("x_in", 0.0)) * Config.IN, 0, -float(g.get("y_in", 0.0)) * Config.IN)
+	var t := 0.012
+	var body := StaticBody3D.new()
+	body.position = c
+	add_child(body)
+	for side in [[Vector3(sz, h, t), Vector3(0, h / 2, -sz / 2)], [Vector3(sz, h, t), Vector3(0, h / 2, sz / 2)],
+			[Vector3(t, h, sz), Vector3(-sz / 2, h / 2, 0)], [Vector3(t, h, sz), Vector3(sz / 2, h / 2, 0)]]:
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = side[0]
+		cs.shape = box
+		cs.position = side[1]
+		body.add_child(cs)
+		_mesh(side[0], side[1], Color(0.3, 0.9, 0.45, 0.45), body)
+	goal_area = Area3D.new()
+	goal_area.collision_layer = 0
+	goal_area.collision_mask = 2
+	var acs := CollisionShape3D.new()
+	var abox := BoxShape3D.new()
+	abox.size = Vector3(sz - 2 * t, h * 0.6, sz - 2 * t)
+	acs.shape = abox
+	goal_area.position = c + Vector3(0, h * 0.3, 0)
+	goal_area.add_child(acs)
+	add_child(goal_area)
 
 func _mat(color: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
