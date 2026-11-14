@@ -24,6 +24,7 @@ func _run() -> void:
 	var teleop = main.teleop
 	var timer = main.match_timer
 	teleop.active = false  # the test sets wheel powers itself
+	robot.aim_point = null
 	# A clear lane on the red side for the driving checks.
 	var cfg = root.get_node("Config")
 	cfg.data["robot"]["start_x_in"] = -50.0
@@ -80,15 +81,29 @@ func _run() -> void:
 	await steps(5)
 	check("CAD model loaded", robot.has_cad_model)
 	check("turret starts centred, levers stowed", absf(robot.turret_deg) < 0.01 and robot.lever_front_deg < 0.01)
-	robot.turret_servo = 1.0
+	robot.turret_goal_deg = 150.0
 	robot.lever_front_servo = 1.0
 	await steps(12)
 	check("mechanisms do not snap instantly", robot.turret_deg > 1.0 and robot.turret_deg < 20.0 and robot.lever_front_deg > 5.0 and robot.lever_front_deg < 60.0,
 		"turret %.1f, lever %.1f after 0.1 s" % [robot.turret_deg, robot.lever_front_deg])
-	await steps(240)
-	var half: float = 300.0 * 15.0 / 70.0 / 2.0
-	check("turret stops at its servo limit", absf(robot.turret_deg - half) < 0.01, "%.2f deg (limit %.2f)" % [robot.turret_deg, half])
+	await steps(360)
+	check("turret turns past the old servo limit", absf(robot.turret_deg - 150.0) < 0.01, "%.2f deg" % robot.turret_deg)
+	robot.turret_goal_deg = -150.0
+	await steps(60)
+	check("turret takes the short way round (through 180)", absf(robot.turret_deg) > 150.0, "%.1f deg" % robot.turret_deg)
 	check("front lever deploys to 90, back stays stowed", absf(robot.lever_front_deg - 90.0) < 0.01 and robot.lever_back_deg < 0.01)
+	# Auto-aim: the shooter side of the turret faces the tag under the raised cell, wherever the robot is.
+	for pose in [Vector3(-50, -50, 90), Vector3(40, 50, -30), Vector3(-45, 45, 200)]:
+		robot.set_pose_ftc(pose.x, pose.y, pose.z)
+		var tag: Vector3 = main.field.aim_point("red")
+		robot.aim_point = tag
+		await steps(600)
+		var to_tag: Vector3 = tag - robot.global_position
+		to_tag.y = 0.0
+		var shooter_dir: Vector3 = (robot.global_transform.basis * Basis(Vector3.UP, deg_to_rad(robot.turret_deg))).x
+		var err: float = rad_to_deg(shooter_dir.angle_to(to_tag))
+		check("auto-aim faces the red hive tag from %s" % str(pose), err < 1.0, "error %.2f deg" % err)
+	robot.aim_point = null
 	robot.reset_pose()
 	await steps(240)
 
@@ -97,14 +112,15 @@ func _run() -> void:
 	pollen.clear()
 	robot.set_pose_ftc(-50, -50, 90)
 	await steps(5)
-	var ball = pollen.spawn_ball(robot.global_position + Vector3(0, pollen.radius, -(robot.length / 2.0 + 0.3)))
+	var ball = pollen.spawn_ball(robot.global_position + Vector3(0, pollen.radius, -(robot.length / 2.0 + 0.5)))
 	var ball_z0: float = ball.global_position.z
 	robot.wheel_powers = [0.3, 0.3, 0.3, 0.3]
 	await steps(180)
 	check("intake off: ball is pushed, not swallowed", robot.held_total() == 0 and pollen.ball_count() == 1 and ball.global_position.z < ball_z0 - 0.05)
 	robot.intake_front_power = 1.0
+	robot.wheel_powers = [1.0, 1.0, 1.0, 1.0]
 	await steps(120)
-	check("intake on: ball is swallowed into the front feeder", robot.held_count(0) == 1 and pollen.ball_count() == 0)
+	check("intake on at full speed: ball is swallowed into the front feeder", robot.held_count(0) == 1 and pollen.ball_count() == 0)
 	robot.wheel_powers = [0.0, 0.0, 0.0, 0.0]
 	await steps(120)
 	check("ball waits at the neck while the flywheel is off", robot.held_count(0) == 1 and robot.shots_fired == 0)
@@ -129,7 +145,7 @@ func _run() -> void:
 	robot.set_pose_ftc(-50, -50, 90)
 	robot.intake_front_power = 1.0
 	for i in 6:
-		pollen.spawn_ball(robot.global_position + Vector3((i - 2.5) * 0.03, pollen.radius + i * 0.09, -(robot.length / 2.0 + 0.045)))
+		pollen.spawn_ball(robot.global_position + Vector3((i - 2.5) * 0.03, pollen.radius + i * 0.09, -(robot.length / 2.0 + 0.06)))
 		await steps(40)
 	check("one feeder holds no more than its capacity", robot.held_total() == 2, "holding %d" % robot.held_total())
 	robot.intake_front_power = -1.0

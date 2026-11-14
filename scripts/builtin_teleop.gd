@@ -16,10 +16,13 @@ var _turn_scale := 1.0
 var _turret_rate := 0.6
 var _hood_rate := 0.8
 var flywheel_on := false
+var auto_aim := true
+var _turret_manual_rate := 90.0
 
 func _ready() -> void:
 	apply_config()
 	field_centric = bool(Config.value("driver.field_centric_default", false))
+	auto_aim = bool(Config.value("driver.auto_aim_default", true))
 
 func apply_config() -> void:
 	_deadzone = Config.num("driver.stick_deadzone", 0.05)
@@ -27,6 +30,7 @@ func apply_config() -> void:
 	_turn_scale = Config.num("driver.turn_scale", 1.0)
 	_turret_rate = Config.num("driver.turret_nudge_per_s", 0.6)
 	_hood_rate = Config.num("driver.hood_nudge_per_s", 0.8)
+	_turret_manual_rate = Config.num("driver.turret_manual_deg_per_s", 90.0)
 
 func gamepad_id() -> int:
 	var pads := Input.get_connected_joypads()
@@ -109,12 +113,17 @@ func _physics_process(dt: float) -> void:
 	if not active or robot == null:
 		return
 	if robot.enabled:
-		robot.turret_servo = clampf(robot.turret_servo + read_turret() * _turret_rate * dt, 0.0, 1.0)
+		# Turret: moving it by hand switches auto-aim off; the auto-aim button switches it back on.
+		var turret_in := read_turret()
+		if turret_in != 0.0:
+			auto_aim = false
+		robot.turret_servo = clampf(robot.turret_servo + turret_in * _turret_rate * dt, 0.0, 1.0)
+		robot.turret_goal_deg = wrapf(robot.turret_goal_deg + turret_in * _turret_manual_rate * dt, -180.0, 180.0)
 		# Hood: D-pad up/down or arrow keys.
 		var hood := _key_axis(KEY_DOWN, KEY_UP) + _pad_btn(JOY_BUTTON_DPAD_UP) - _pad_btn(JOY_BUTTON_DPAD_DOWN)
 		robot.hood_servo = clampf(robot.hood_servo + hood * _hood_rate * dt, 0.0, 1.0)
-		# Intakes: right trigger = front (A side), left trigger = back. Hold Ctrl / right-stick click to reverse.
-		var rev := -1.0 if (Input.is_physical_key_pressed(KEY_CTRL) or _pad_btn(JOY_BUTTON_RIGHT_STICK) > 0.0) else 1.0
+		# Intakes: right trigger = front (A side), left trigger = back. Hold Ctrl / left-stick click to reverse.
+		var rev := -1.0 if (Input.is_physical_key_pressed(KEY_CTRL) or _pad_btn(JOY_BUTTON_LEFT_STICK) > 0.0) else 1.0
 		var front := maxf(_pad_axis(JOY_AXIS_TRIGGER_RIGHT), 1.0 if Input.is_physical_key_pressed(KEY_I) else 0.0)
 		var back := maxf(_pad_axis(JOY_AXIS_TRIGGER_LEFT), 1.0 if Input.is_physical_key_pressed(KEY_K) else 0.0)
 		robot.intake_front_power = front * rev

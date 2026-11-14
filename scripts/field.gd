@@ -200,6 +200,14 @@ func cell_count(alliance: String, up: bool) -> int:
 			return h["areas"][side].get_overlapping_bodies().size()
 	return 0
 
+## World position of the AprilTag under the raised (active) cell of an alliance's hive.
+func aim_point(alliance: String):
+	var h := hive_of(alliance)
+	if h.is_empty():
+		return null
+	var z := 14.0 * Config.IN * (1.0 if h["up_side"] == "bottom" else -1.0)
+	return h["body"].global_transform * Vector3(0, -1.5 * Config.IN, z)
+
 func hive_of(alliance: String) -> Dictionary:
 	for h in hives:
 		if h["alliance"] == alliance:

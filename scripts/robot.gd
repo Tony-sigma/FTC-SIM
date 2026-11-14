@@ -32,6 +32,11 @@ var max_ang_accel := 15.0
 var ticks_per_wheel_rev := 537.7
 
 ## Mechanisms are commanded like servos: position 0..1. The parts follow at a limited speed.
+## Turret: with turret.continuous the turret has no end stops and is commanded by angle
+## (turret_goal_deg, robot-relative, CCW positive) or by aim_point (a world position to face).
+var turret_continuous := true
+var turret_goal_deg := 0.0
+var aim_point = null   # Vector3 or null
 var turret_servo := 0.5
 var lever_front_servo := 0.0
 var lever_back_servo := 0.0
@@ -70,6 +75,8 @@ var _exit_offset := Vector3(0.1, 0.5, 0.0)
 var _shot_cooldown := 0.0
 var _spit_cooldown := 0.0
 var _zones: Array[Area3D] = []
+var _aim_dots: Array[MeshInstance3D] = []
+var _mouth_reach := 0.1
 
 var _turret_range_deg := 64.3
 var _turret_speed := 85.0
@@ -106,6 +113,7 @@ func apply_config() -> void:
 	max_ang_accel = deg_to_rad(Config.num("drivetrain.max_angular_accel_deg_per_s2", 900.0))
 	ticks_per_wheel_rev = Config.num("drivetrain.ticks_per_rev", 537.7) * gear
 	var ratio := Config.num("turret.servo_gear_teeth", 15.0) / Config.num("turret.turret_gear_teeth", 70.0)
+	turret_continuous = bool(Config.value("turret.continuous", true))
 	_turret_range_deg = Config.num("turret.servo_range_deg", 300.0) * ratio
 	_turret_speed = Config.num("turret.servo_speed_deg_per_s", 400.0) * ratio
 	_lever_stowed = Config.num("levers.stowed_deg", 0.0)
@@ -115,7 +123,8 @@ func apply_config() -> void:
 	_feeder_cap = int(Config.num("intakes.feeder_capacity", 3))
 	_total_cap = int(Config.num("intakes.total_capacity", 3))
 	_transit_s = Config.num("intakes.feeder_transit_s", 0.5)
-	_mouth_width = Config.inches("intakes.mouth_width_in", 8.5)
+	_mouth_width = Config.inches("intakes.mouth_width_in", 12.0)
+	_mouth_reach = Config.inches("intakes.mouth_reach_in", 4.0)
 	flywheel_max_rpm = Config.num("shooter.flywheel_max_rpm", 3000.0)
 	_exit_speed_max = flywheel_max_rpm / 60.0 * PI * Config.inches("shooter.flywheel_diameter_in", 4.0) * Config.num("shooter.exit_speed_fraction", 0.35)
 	_spin_tau = Config.num("shooter.spin_up_time_s", 0.6)
@@ -136,6 +145,8 @@ func reset_pose() -> void:
 		wheel_powers[i] = 0.0
 		wheel_angles[i] = 0.0
 	turret_servo = 0.5
+	turret_goal_deg = 0.0
+	turret_deg = 0.0
 	lever_front_servo = 0.0
 	lever_back_servo = 0.0
 	intake_front_power = 0.0
@@ -178,8 +189,19 @@ func toggle_shell() -> void:
 
 func _update_mechanisms(dt: float) -> void:
 	# Positive turret angle = counter-clockwise seen from above (same sense as heading).
-	var turret_goal := (clampf(turret_servo, 0.0, 1.0) - 0.5) * _turret_range_deg
-	turret_deg = move_toward(turret_deg, turret_goal, _turret_speed * dt)
+	if turret_continuous:
+		var goal := turret_goal_deg
+		if aim_point != null:
+			# The shooter looks along the turret's +X; find the turret angle that points +X at the target.
+			var v: Vector3 = global_transform.basis.inverse() * (aim_point - global_position)
+			goal = rad_to_deg(atan2(-v.z, v.x))
+			turret_goal_deg = goal
+		# Take the short way round.
+		var diff := wrapf(goal - turret_deg, -180.0, 180.0)
+		turret_deg = wrapf(turret_deg + clampf(diff, -_turret_speed * dt, _turret_speed * dt), -180.0, 180.0)
+	else:
+		var turret_goal := (clampf(turret_servo, 0.0, 1.0) - 0.5) * _turret_range_deg
+		turret_deg = move_toward(turret_deg, turret_goal, _turret_speed * dt)
 	lever_front_deg = move_toward(lever_front_deg, lerpf(_lever_stowed, _lever_deployed, clampf(lever_front_servo, 0.0, 1.0)), _lever_speed * dt)
 	lever_back_deg = move_toward(lever_back_deg, lerpf(_lever_stowed, _lever_deployed, clampf(lever_back_servo, 0.0, 1.0)), _lever_speed * dt)
 	if _turret_node:
@@ -228,10 +250,11 @@ func _build_intake_zones() -> void:
 		area.collision_mask = 2
 		var cs := CollisionShape3D.new()
 		var box := BoxShape3D.new()
-		box.size = Vector3(_mouth_width, 0.1, 0.06)
+		# Reaches a little way out in front of the chassis, so a ball is caught even at full speed.
+		box.size = Vector3(_mouth_width, 0.12, _mouth_reach + 0.04)
 		cs.shape = box
 		area.add_child(cs)
-		area.position = Vector3(0, 0.05, sgn * (length / 2.0 + 0.012))
+		area.position = Vector3(0, 0.06, sgn * (length / 2.0 + _mouth_reach / 2.0 - 0.02))
 		add_child(area)
 		_zones.append(area)
 
@@ -272,23 +295,57 @@ func _update_game_pieces(dt: float) -> void:
 				var out := global_transform.basis.z * sgn
 				pollen.spawn_ball(global_position + out * (length / 2.0 + 0.09) + Vector3(0, 0.05, 0), velocity + out * 1.0, self)
 
-func _launch() -> void:
-	_shot_cooldown = _shot_interval
-	shots_fired += 1
-	var speed := _exit_speed_max * flywheel_fraction
-	flywheel_fraction *= 1.0 - _shot_drop
-	if pollen == null:
-		return
-	# The shooter points along the turret's +X (the Limelight side), tilted up by the hood angle.
+## Where a ball leaves the shooter and how fast, right now: [position, velocity] in world space.
+## The shooter points along the turret's +X (the Limelight side), tilted up by the hood angle.
+func shot_state() -> Array:
 	var turret_basis := global_transform.basis * Basis(Vector3.UP, deg_to_rad(turret_deg))
 	var a := deg_to_rad(hood_deg)
 	var dir := (turret_basis.x * cos(a) + Vector3.UP * sin(a)).normalized()
-	var pos := global_position + turret_basis * _exit_offset
-	pollen.spawn_ball(pos, velocity + dir * speed, self)
+	return [global_position + turret_basis * _exit_offset, velocity + dir * _exit_speed_max * flywheel_fraction]
+
+func is_full() -> bool:
+	return held_total() >= _total_cap
+
+func _launch() -> void:
+	_shot_cooldown = _shot_interval
+	shots_fired += 1
+	var st := shot_state()
+	flywheel_fraction *= 1.0 - _shot_drop
+	if pollen != null:
+		pollen.spawn_ball(st[0], st[1], self)
+
+## Dotted arc showing where a shot would go with the current flywheel speed, hood and turret.
+func _update_aim_dots() -> void:
+	if _aim_dots.is_empty():
+		var mesh := SphereMesh.new()
+		mesh.radius = 0.03
+		mesh.height = 0.06
+		mesh.radial_segments = 8
+		mesh.rings = 4
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.2, 1.0, 0.4)
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		for i in 28:
+			var mi := MeshInstance3D.new()
+			mi.mesh = mesh
+			mi.material_override = mat
+			mi.top_level = true
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mi)
+			_aim_dots.append(mi)
+	var show := flywheel_fraction > 0.15
+	var st := shot_state()
+	var g := Vector3(0, -9.8, 0)
+	for i in _aim_dots.size():
+		var t := 0.05 * (i + 1)
+		var p: Vector3 = st[0] + st[1] * t + 0.5 * g * t * t
+		_aim_dots[i].visible = show and p.y > 0.0
+		_aim_dots[i].global_position = p
 
 func _physics_process(dt: float) -> void:
 	_update_mechanisms(dt)
 	_update_game_pieces(dt)
+	_update_aim_dots()
 	var p: Array[float] = [0.0, 0.0, 0.0, 0.0]
 	if enabled:
 		for i in 4:

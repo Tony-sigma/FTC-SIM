@@ -14,12 +14,14 @@ var teleop
 var match_timer
 var hud
 var pollen
+var _alliance := "red"
 
 var _cams: Array[Camera3D] = []
 var _cam_names := ["Driver station", "Top-down", "Chase"]
 var _cam_index := 0
 
 func _ready() -> void:
+	_alliance = "blue" if str(Config.value("driver.alliance", "red")) == "blue" else "red"
 	_build_world()
 	field = FieldScript.new()
 	add_child(field)
@@ -125,6 +127,10 @@ func _process(_dt: float) -> void:
 		"hive": "red up %d low %d   blue up %d low %d" % [field.cell_count("red", true), field.cell_count("red", false), field.cell_count("blue", true), field.cell_count("blue", false)],
 		"turret_deg": robot.turret_deg,
 		"turret_half_range": robot.turret_range_deg() / 2.0,
+		"turret_continuous": robot.turret_continuous,
+		"auto_aim": teleop.auto_aim,
+		"alliance": _alliance,
+		"full": robot.is_full(),
 		"lever_front_deg": robot.lever_front_deg,
 		"lever_back_deg": robot.lever_back_deg,
 		"size_in": Vector3(Config.num("robot.length_in", 18.0), Config.num("robot.width_in", 18.0), Config.num("robot.height_in", 18.0)),
@@ -133,6 +139,8 @@ func _process(_dt: float) -> void:
 
 func _physics_process(_dt: float) -> void:
 	robot.enabled = match_timer.driver_enabled()
+	if teleop.active:  # when something else drives the robot (tests, later the Java bridge) it sets the aim itself
+		robot.aim_point = field.aim_point(_alliance) if teleop.auto_aim else null
 	field.update_flowers(robot, pollen, _dt)
 	field.update_hives(_dt)
 
@@ -171,6 +179,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_2: teleop.toggle_lever(false)
 			KEY_V: robot.toggle_shell()
 			KEY_G: teleop.toggle_flywheel()
+			KEY_T: teleop.auto_aim = not teleop.auto_aim
 	elif event is InputEventJoypadButton and event.pressed:
 		match event.button_index:
 			JOY_BUTTON_Y: teleop.field_centric = not teleop.field_centric
@@ -178,6 +187,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			JOY_BUTTON_START: match_timer.start_teleop_only()
 			JOY_BUTTON_BACK: reset_all()
 			JOY_BUTTON_RIGHT_SHOULDER: teleop.toggle_flywheel()
-			JOY_BUTTON_LEFT_STICK: _next_camera()
+			JOY_BUTTON_RIGHT_STICK: teleop.auto_aim = not teleop.auto_aim
 			JOY_BUTTON_A: teleop.toggle_lever(true)
 			JOY_BUTTON_B: teleop.toggle_lever(false)
