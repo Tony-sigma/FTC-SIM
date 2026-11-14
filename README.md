@@ -13,24 +13,68 @@ Driver practice and (later) real-OpMode testing for our FTC robot.
 |---|---|---|
 | Drive / strafe | Left stick | W A S D |
 | Turn | Right stick X | Q / E |
-| Slow mode (hold) | Left bumper | Shift |
+| Intake, both sides (hold) | Left trigger | Shift |
+| Shoot (hold) | Right trigger | Space |
+| Spit pollen back out (hold) | Right bumper | B |
+| Slow mode (hold) | Left bumper | Ctrl |
+| Turret auto-aim on / off | Right-stick click | T |
+| Turret / hood by hand (switches auto-aim off) | D-pad | Z / X and ↑ / ↓ |
+| Front lever / back lever (toggle) | A / B | 1 / 2 |
 | Robot-centric ↔ field-centric | Y | F |
-| Reset field-centric "forward" to where the robot faces now | X | H |
+| Reset field-centric "forward" | X | H |
 | Start a 2:00 driver-controlled match | Start | Enter |
 | Start a full match (30 s auto → transition → 2:00) | – | M |
-| Front intake (side A) / back intake (hold) | Right trigger / left trigger | I / K |
-| Reverse the intakes (hold with the above) | Left-stick click | Ctrl |
-| Shooter flywheel on / off | Right bumper | G |
-| Hood up / down (only when auto-aim is off) | D-pad ↑ / ↓ | ↑ / ↓ |
-| Turret auto-aim on / off | Right-stick click | T |
-| Turret by hand (switches auto-aim off) | D-pad ← / → | Z / X |
-| Front lever / back lever (toggle) | A / B | 1 / 2 |
+| Reset robot, field and clock | Back | R |
+| Run a Java OpMode | – | J |
+| Next camera | – | C |
 | Show the collision box | – | V |
-| Reset robot + clock | Back | R |
-| Next camera (driver station / top-down / chase) | – | C |
 | Reload `robot_config.json` | – | F5 |
 
+The flywheel spins all the time. Intake pulls pollen in with a gate shut at the neck; shoot opens
+the gate and feeds them to the flywheel. (The gate is an assumption about the real robot: see
+`shooter._gate_note` in `robot_config.json`.)
+
 With no match running you are in free practice (no clock).
+
+## Running your real Java code
+You need a **JDK 11 or newer** installed (https://adoptium.net). Then, in the running sim:
+
+1. Press **J**. The sim lists every `@TeleOp` / `@Autonomous` OpMode it finds in the TeamCode folder.
+2. Press its number. The code is compiled and the OpMode starts in INIT (top right of the screen).
+   Compile errors appear there too.
+3. Press **Enter** (or Start) to run it, like the play button on the Driver Station. An autonomous
+   gets the 30 s clock, a TeleOp the 2:00 clock.
+4. Press **R** (or Back) to stop it and get the built-in controls back.
+
+By default the TeamCode folder is `java/teamcode` in this project, which has two samples
+(`BiobuzzTeleOp`, `DriveSquareAuto`). To use your real code, set `java.teamcode_dir` in
+`robot_config.json` to your `TeamCode/src/main/java` folder. Nothing in your code changes: the sim
+provides stand-ins with the same names as the FTC SDK classes (`java/sdk`).
+
+**What the OpMode sees**
+- Motors (`DcMotor` / `DcMotorEx`): `frontLeft`, `frontRight`, `backLeft`, `backRight`, `intakeA`,
+  `intakeB`, `shooterLeft`, `shooterRight`, and the odometry pods as encoders `odoX`, `odoY`.
+  Directions, run modes, `RUN_TO_POSITION`, encoders and `getVelocity()` work.
+- Servos: `turretServo` (0..1 = one full turn, 0.5 = centre), `hoodServo`, `gateServo`
+  (above 0.5 = open), `leverLeft` (front lever), `leverRight` (back lever).
+- `IMU` yaw, `gamepad1` / `gamepad2`, `telemetry`, `ElapsedTime`.
+- The left drive motors are "mounted mirrored" (`drivetrain.motor_inverted`), so code needs the
+  usual `setDirection(REVERSE)` on the left side, as on a real robot.
+
+Without a gamepad, the keyboard acts as gamepad1: WASD = left stick, Q/E = right stick X,
+Shift = left trigger, Space = right trigger, Ctrl = left bumper, B = right bumper, arrows = D-pad,
+1 2 3 4 = A B X Y.
+
+**Not there yet:** the Limelight, the goBILDA Pinpoint driver, Road Runner / Pedro Pathing, FTCLib.
+A file that uses something the sim does not have is listed as "EXCLUDED" with the reason and left
+out; the rest of your code still runs.
+
+From a terminal, the same thing without the menu (the sim must be running):
+```bash
+cd java
+java RunSim.java --list
+java RunSim.java "Biobuzz TeleOp"
+```
 
 ## Changing robot numbers
 Everything lives in **`robot_config.json`**: dimensions, wheel size, motor RPM, track width,
@@ -111,15 +155,17 @@ TeleOp that turns sticks into those wheel powers.
 Coordinates shown on the HUD are FTC-style: inches, origin at field centre, heading
 counter-clockwise. Red wall is −x, blue wall is +x, audience is −y.
 
-## Self-test
+## Self-tests
 ```bash
 godot --headless -s tests/test_drive.gd
+godot --headless -s tests/test_java.gd
 ```
+The second one compiles and runs the sample Java OpModes against the sim (needs a JDK).
 
 ## Roadmap
 1. ✅ Driver practice MVP
 2. ✅ Real robot CAD model (turret + lever pivots)
 3. ✅ Pollen, intakes, shooter, turret/lever controls, BIOBUZZ field layout (heights and hive/flower behaviour still guesses)
-4. Java sim SDK + WebSocket bridge (run real OpModes)
+4. ✅ Java sim SDK + bridge: real OpModes compile and drive the sim (plain TCP with JSON lines rather than WebSocket)
 5. Odometry + IMU, sample autonomous
 6. Limelight sim

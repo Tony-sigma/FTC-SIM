@@ -24,6 +24,7 @@ func _run() -> void:
 	var teleop = main.teleop
 	var timer = main.match_timer
 	teleop.active = false  # the test sets wheel powers itself
+	main._external_control = true
 	robot.aim_point = null
 	# A clear lane on the red side for the driving checks.
 	var cfg = root.get_node("Config")

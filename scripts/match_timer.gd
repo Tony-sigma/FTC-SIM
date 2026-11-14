@@ -11,6 +11,7 @@ var time_left := 0.0
 var auto_s := 30.0
 var transition_s := 8.0
 var teleop_s := 120.0
+var _auto_only := false
 
 func _ready() -> void:
 	apply_config()
@@ -21,6 +22,12 @@ func apply_config() -> void:
 	teleop_s = Config.num("match.teleop_s", 120.0)
 
 func start_full_match() -> void:
+	_auto_only = false
+	_enter(State.AUTO, auto_s)
+
+## Autonomous period only (used when a Java autonomous OpMode runs).
+func start_auto_only() -> void:
+	_auto_only = true
 	_enter(State.AUTO, auto_s)
 
 func start_teleop_only() -> void:
@@ -49,7 +56,9 @@ func _physics_process(dt: float) -> void:
 		return
 	match state:
 		State.AUTO:
-			if transition_s > 0.0:
+			if _auto_only:
+				_enter(State.ENDED, 0.0)
+			elif transition_s > 0.0:
 				_enter(State.TRANSITION, transition_s)
 			else:
 				_enter(State.TELEOP, teleop_s)

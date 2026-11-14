@@ -7,6 +7,8 @@ const TeleopScript := preload("res://scripts/builtin_teleop.gd")
 const TimerScript := preload("res://scripts/match_timer.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const PollenScript := preload("res://scripts/pollen.gd")
+const BridgeScript := preload("res://scripts/java_bridge.gd")
+const RunnerScript := preload("res://scripts/java_runner.gd")
 
 var field
 var robot
@@ -14,7 +16,13 @@ var teleop
 var match_timer
 var hud
 var pollen
+var bridge
+var java_runner
+var _menu: Array = []   # OpModes offered in the Java menu; empty = menu closed
+var _menu_open := false
 var _alliance := "red"
+## Set by tests that drive the robot themselves, so the built-in TeleOp stays off.
+var _external_control := false
 
 var _cams: Array[Camera3D] = []
 var _cam_names := ["Driver station", "Top-down", "Chase"]
@@ -42,6 +50,13 @@ func _ready() -> void:
 	teleop.robot = robot
 	add_child(teleop)
 	teleop.reset_field_heading()
+	bridge = BridgeScript.new()
+	bridge.name = "JavaBridge"
+	bridge.robot = robot
+	add_child(bridge)
+	java_runner = RunnerScript.new()
+	java_runner.name = "JavaRunner"
+	add_child(java_runner)
 	hud = HudScript.new()
 	add_child(hud)
 	_build_cameras()
@@ -112,12 +127,14 @@ func _process(_dt: float) -> void:
 		"state_name": match_timer.state_name(),
 		"banner": banner,
 		"field_centric": teleop.field_centric,
+		"java_driving": bridge.connected,
 		"slow": teleop.slow,
 		"pose": robot.get_pose_ftc(),
 		"speed_in": robot.get_speed() / Config.IN,
 		"max_speed_in": robot.max_forward_speed() / Config.IN,
 		"camera": _cam_names[_cam_index],
 		"gamepad": teleop.gamepad_name(),
+		"java": _java_status(),
 		"held_front": robot.held_count(0),
 		"held_back": robot.held_count(1),
 		"flywheel_rpm": robot.flywheel_rpm(),
@@ -128,8 +145,8 @@ func _process(_dt: float) -> void:
 		"turret_deg": robot.turret_deg,
 		"turret_half_range": robot.turret_range_deg() / 2.0,
 		"turret_continuous": robot.turret_continuous,
-		"auto_aim": teleop.auto_aim,
-		"auto_shot": teleop.auto_shot_status,
+		"auto_aim": teleop.auto_aim and not bridge.connected,
+		"auto_shot": "" if bridge.connected else teleop.auto_shot_status,
 		"alliance": _alliance,
 		"full": robot.is_full(),
 		"lever_front_deg": robot.lever_front_deg,
@@ -139,7 +156,16 @@ func _process(_dt: float) -> void:
 	})
 
 func _physics_process(_dt: float) -> void:
-	robot.enabled = match_timer.driver_enabled()
+	# While a Java OpMode is connected it drives the robot; the built-in TeleOp steps aside.
+	if bridge.connected:
+		teleop.active = false
+		robot.enabled = match_timer.state != match_timer.State.ENDED
+		if match_timer.state == match_timer.State.ENDED:
+			bridge.request_stop()
+	else:
+		if not teleop.active and not _external_control:
+			teleop.active = true
+		robot.enabled = match_timer.driver_enabled()
 	if teleop.active:  # when something else drives the robot (tests, later the Java bridge) it sets the aim itself
 		robot.aim_point = field.aim_point(_alliance) if teleop.auto_aim else null
 		teleop.shot_target = field.mouth_point(_alliance)
@@ -147,7 +173,17 @@ func _physics_process(_dt: float) -> void:
 	field.update_flowers(robot, pollen, _dt)
 	field.update_hives(_dt)
 
+func _java_status() -> String:
+	if bridge.connected:
+		var head := "JAVA  %s  [%s]" % [bridge.opmode, {"init": "INIT - press Enter / Start to run", "run": "RUNNING", "done": "finished", "error": "CRASHED"}.get(bridge.phase, bridge.phase)]
+		return head + ("\n" + bridge.telemetry.strip_edges() if bridge.telemetry.strip_edges() != "" else "")
+	if java_runner.running_name != "" and (java_runner.is_running() or java_runner.log_tail != ""):
+		return "JAVA  %s  [%s]\n%s" % [java_runner.running_name, "starting..." if java_runner.is_running() else "stopped", java_runner.log_tail]
+	return ""
+
 func reset_all() -> void:
+	bridge.request_stop()
+	java_runner.stop()
 	match_timer.reset()
 	robot.reset_pose()
 	teleop.reset_field_heading()
@@ -157,6 +193,7 @@ func reset_all() -> void:
 
 func reload_config() -> void:
 	Config.load_config()
+	bridge.apply_config()
 	pollen.apply_config()
 	robot.apply_config()
 	teleop.apply_config()
@@ -167,12 +204,50 @@ func _next_camera() -> void:
 	_cam_index = (_cam_index + 1) % _cams.size()
 	_cams[_cam_index].make_current()
 
+## Enter / Start: with a Java OpMode waiting in INIT this is the Driver Station's play button.
+func _start_pressed() -> void:
+	if bridge.connected and bridge.phase == "init":
+		bridge.request_start()
+		if bridge.flavor == "auto":
+			match_timer.start_auto_only()
+		else:
+			match_timer.start_teleop_only()
+	elif not bridge.connected:
+		match_timer.start_teleop_only()
+
+func _open_java_menu() -> void:
+	_menu = java_runner.scan_opmodes()
+	_menu_open = true
+	var lines := ["RUN A JAVA OPMODE", "from " + java_runner.teamcode_dir(), ""]
+	if _menu.is_empty():
+		lines.append("No OpModes found (looking for @TeleOp / @Autonomous in .java files).")
+	for i in mini(_menu.size(), 9):
+		lines.append("%d   %s   (%s)" % [i + 1, _menu[i]["name"], "TeleOp" if _menu[i]["flavor"] == "teleop" else "Autonomous"])
+	lines.append("")
+	lines.append("Press a number to run it, Esc to close.")
+	hud.show_menu("\n".join(lines))
+
+func _close_java_menu() -> void:
+	_menu_open = false
+	hud.show_menu("")
+
 func _unhandled_input(event: InputEvent) -> void:
+	if _menu_open:
+		if event is InputEventKey and event.pressed and not event.echo:
+			var idx: int = event.physical_keycode - KEY_1
+			if idx >= 0 and idx < mini(_menu.size(), 9):
+				reset_all()
+				java_runner.launch(_menu[idx]["name"])
+			_close_java_menu()
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
+		if bridge.connected and event.physical_keycode in [KEY_1, KEY_2, KEY_F, KEY_H, KEY_T, KEY_M]:
+			return  # these keys belong to the built-in TeleOp; the OpMode reads the gamepad itself
 		match event.physical_keycode:
+			KEY_J: _open_java_menu()
 			KEY_F: teleop.field_centric = not teleop.field_centric
 			KEY_H: teleop.reset_field_heading()
-			KEY_ENTER, KEY_KP_ENTER: match_timer.start_teleop_only()
+			KEY_ENTER, KEY_KP_ENTER: _start_pressed()
 			KEY_M: match_timer.start_full_match()
 			KEY_R: reset_all()
 			KEY_C: _next_camera()
@@ -181,15 +256,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_1: teleop.toggle_lever(true)
 			KEY_2: teleop.toggle_lever(false)
 			KEY_V: robot.toggle_shell()
-			KEY_G: teleop.toggle_flywheel()
 			KEY_T: teleop.auto_aim = not teleop.auto_aim
 	elif event is InputEventJoypadButton and event.pressed:
+		if bridge.connected and not event.button_index in [JOY_BUTTON_START, JOY_BUTTON_BACK]:
+			return
 		match event.button_index:
 			JOY_BUTTON_Y: teleop.field_centric = not teleop.field_centric
 			JOY_BUTTON_X: teleop.reset_field_heading()
-			JOY_BUTTON_START: match_timer.start_teleop_only()
+			JOY_BUTTON_START: _start_pressed()
 			JOY_BUTTON_BACK: reset_all()
-			JOY_BUTTON_RIGHT_SHOULDER: teleop.toggle_flywheel()
 			JOY_BUTTON_RIGHT_STICK: teleop.auto_aim = not teleop.auto_aim
 			JOY_BUTTON_A: teleop.toggle_lever(true)
 			JOY_BUTTON_B: teleop.toggle_lever(false)

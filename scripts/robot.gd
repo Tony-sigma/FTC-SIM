@@ -50,6 +50,12 @@ var has_cad_model := false
 var intake_front_power := 0.0   # -1..1, + = pull balls in and feed them up
 var intake_back_power := 0.0
 var shooter_power := 0.0        # 0..1
+var gate_open := true           # the stopper at the neck; closed = pollen wait there even with the feeders running
+## Dead-wheel pods: distance rolled, in metres.
+var odo_forward := 0.0
+var odo_strafe := 0.0
+var _odo_left_off := -0.131
+var _odo_fwd_off := -0.089
 var hood_servo := 0.5           # 0..1 -> launch angle
 var hood_deg := 45.0
 var flywheel_fraction := 0.0    # actual flywheel speed, 0..1 of max
@@ -120,6 +126,8 @@ func apply_config() -> void:
 	_lever_deployed = Config.num("levers.deployed_deg", 90.0)
 	_lever_speed = Config.num("levers.speed_deg_per_s", 240.0)
 	_lever_signs = [Config.num("levers.front_deploy_sign", -1.0), Config.num("levers.back_deploy_sign", 1.0)]
+	_odo_left_off = Config.inches("odometry.forward_pod_left_offset_in", -5.159)
+	_odo_fwd_off = Config.inches("odometry.strafe_pod_forward_offset_in", -3.497)
 	_feeder_cap = int(Config.num("intakes.feeder_capacity", 3))
 	_total_cap = int(Config.num("intakes.total_capacity", 3))
 	_transit_s = Config.num("intakes.feeder_transit_s", 0.5)
@@ -152,6 +160,9 @@ func reset_pose() -> void:
 	intake_front_power = 0.0
 	intake_back_power = 0.0
 	shooter_power = 0.0
+	gate_open = true
+	odo_forward = 0.0
+	odo_strafe = 0.0
 	hood_servo = 0.5
 	flywheel_fraction = 0.0
 	shots_fired = 0
@@ -283,7 +294,7 @@ func _update_game_pieces(dt: float) -> void:
 			for k in balls.size():
 				balls[k] = minf(balls[k] + power * dt / _transit_s, 1.0 - 0.25 * k)
 			# Ball at the neck + flywheel spinning = shot.
-			if balls.size() > 0 and balls[0] >= 1.0 and flywheel_fraction >= _min_shoot and _shot_cooldown <= 0.0:
+			if gate_open and balls.size() > 0 and balls[0] >= 1.0 and flywheel_fraction >= _min_shoot and _shot_cooldown <= 0.0:
 				balls.pop_front()
 				_launch()
 		elif power < -0.1 and balls.size() > 0 and _spit_cooldown <= 0.0:
@@ -386,6 +397,9 @@ func _physics_process(dt: float) -> void:
 		v_forward + s - k * omega, v_forward - s + k * omega]
 	for i in 4:
 		wheel_angles[i] += rim[i] / wheel_radius * dt
+	# Dead wheels: a pod mounted off-centre also rolls when the robot turns.
+	odo_forward += (v_forward - omega * _odo_left_off) * dt
+	odo_strafe += (v_left + omega * _odo_fwd_off) * dt
 
 # --- placeholder visuals + collision (replaced by the CAD model in Phase 2) ---
 

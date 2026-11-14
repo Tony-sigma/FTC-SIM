@@ -65,7 +65,7 @@ func read_sticks() -> Array[float]:
 	var f := _key_axis(KEY_S, KEY_W)
 	var s := _key_axis(KEY_A, KEY_D)
 	var t := _key_axis(KEY_Q, KEY_E)
-	slow = Input.is_physical_key_pressed(KEY_SHIFT)
+	slow = Input.is_physical_key_pressed(KEY_CTRL)
 	var id := gamepad_id()
 	if id >= 0:
 		f += _dz(-Input.get_joy_axis(id, JOY_AXIS_LEFT_Y))
@@ -104,10 +104,6 @@ func _pad_btn(b: JoyButton) -> float:
 func _pad_axis(a: JoyAxis) -> float:
 	var id := gamepad_id()
 	return Input.get_joy_axis(id, a) if id >= 0 else 0.0
-
-func toggle_flywheel() -> void:
-	if active and robot.enabled:
-		flywheel_on = not flywheel_on
 
 ## Pick the hood angle (and, when the hood alone cannot do it, the flywheel speed) that lands a
 ## shot on `target`. Prefers the steepest arc, so the ball drops into the cell instead of flying in
@@ -184,17 +180,19 @@ func _physics_process(dt: float) -> void:
 		else:
 			var hood := _key_axis(KEY_DOWN, KEY_UP) + _pad_btn(JOY_BUTTON_DPAD_UP) - _pad_btn(JOY_BUTTON_DPAD_DOWN)
 			robot.hood_servo = clampf(robot.hood_servo + hood * _hood_rate * dt, 0.0, 1.0)
-		# Intakes: right trigger = front (A side), left trigger = back. Hold Ctrl / left-stick click to reverse.
-		var rev := -1.0 if (Input.is_physical_key_pressed(KEY_CTRL) or _pad_btn(JOY_BUTTON_LEFT_STICK) > 0.0) else 1.0
-		var front := maxf(_pad_axis(JOY_AXIS_TRIGGER_RIGHT), 1.0 if Input.is_physical_key_pressed(KEY_I) else 0.0)
-		var back := maxf(_pad_axis(JOY_AXIS_TRIGGER_LEFT), 1.0 if Input.is_physical_key_pressed(KEY_K) else 0.0)
-		robot.shooter_power = _auto_power if flywheel_on else 0.0
-		# With the automatic hood, hold the feeders until the flywheel is at the speed the shot needs.
-		if flywheel_on and auto_shot_status != "" and rev > 0.0 and absf(robot.flywheel_fraction - robot.shooter_power) > 0.015 and robot.held_total() > 0:
-			front = 0.0
-			back = 0.0
-		robot.intake_front_power = front * rev
-		robot.intake_back_power = back * rev
+		# The flywheel runs all the time. Intake (Shift / left trigger) pulls pollen in on both sides
+		# with the gate shut; shoot (Space / right trigger) opens the gate and feeds them to the flywheel.
+		flywheel_on = true
+		var intake := maxf(_pad_axis(JOY_AXIS_TRIGGER_LEFT), 1.0 if Input.is_physical_key_pressed(KEY_SHIFT) else 0.0)
+		var shoot := maxf(_pad_axis(JOY_AXIS_TRIGGER_RIGHT), 1.0 if Input.is_physical_key_pressed(KEY_SPACE) else 0.0) > 0.3
+		var reverse := Input.is_physical_key_pressed(KEY_B) or _pad_btn(JOY_BUTTON_RIGHT_SHOULDER) > 0.0
+		robot.shooter_power = _auto_power
+		# With the automatic hood, wait for the flywheel to reach the speed the shot needs.
+		var ready := auto_shot_status == "" or absf(robot.flywheel_fraction - robot.shooter_power) <= 0.015
+		robot.gate_open = shoot and ready
+		var feed := -1.0 if reverse else maxf(intake, 1.0 if shoot else 0.0)
+		robot.intake_front_power = feed
+		robot.intake_back_power = feed
 	else:
 		flywheel_on = false
 	var in_ := read_sticks()

@@ -45,9 +45,11 @@
   },
 
   "shooter": {
-    "_note": "Two motors on one flywheel. A ball waiting at the neck is launched when its intake/feeder motor runs AND the flywheel is spinning.",
+    "_note": "Two motors on one flywheel. A ball waiting at the neck is launched when the gate is open, its intake/feeder motor runs AND the flywheel is spinning.",
     "motor_names": ["shooterLeft", "shooterRight"],
     "hood_servo_name": "hoodServo",
+    "_gate_note": "ASSUMPTION: something holds pollen at the neck until you want to shoot (a gate/stopper servo). Without one, running a feeder with the flywheel spinning fires straight away. Position > 0.5 = open.",
+    "gate_servo_name": "gateServo",
     "flywheel_max_rpm": 3000.0,
     "flywheel_diameter_in": 4.0,
     "exit_speed_fraction": 0.35,
@@ -81,6 +83,8 @@
 
   "drivetrain": {
     "motor_names": ["frontLeft", "frontRight", "backLeft", "backRight"],
+    "_inverted_note": "PLACEHOLDER. true = positive power on that motor drives its wheel BACKWARDS, because of how the motor is mounted. On most mecanum robots the left side is like this, which is why real code calls setDirection(REVERSE) on the left motors. Used only when Java code drives the robot.",
+    "motor_inverted": [true, false, true, false],
     "wheel_diameter_mm": 104.0,
     "motor_rpm": 312.0,
     "ticks_per_rev": 537.7,
@@ -114,6 +118,22 @@
     "back_pivot_m": [0.0, 0.1559, 0.162],
     "front_deploy_sign": -1,
     "back_deploy_sign": 1
+  },
+
+  "odometry": {
+    "_note": "Two dead-wheel pods read as encoders. Offsets measured from the CAD (models/measurements.json). Wheel size and ticks are PLACEHOLDERS (goBILDA pod: 32 mm, 2000 ticks/rev).",
+    "names": ["odoX", "odoY"],
+    "wheel_diameter_mm": 32.0,
+    "ticks_per_rev": 2000.0,
+    "forward_pod_left_offset_in": -5.159,
+    "strafe_pod_forward_offset_in": -3.497
+  },
+
+  "java": {
+    "_note": "Running real OpModes. teamcode_dir: folder with your OpMode .java files; empty = the java/teamcode folder of this project. You can point it at your real TeamCode folder. command: how to start Java (a JDK 11 or newer).",
+    "port": 7778,
+    "teamcode_dir": "",
+    "command": "java"
   },
 
   "driver": {
