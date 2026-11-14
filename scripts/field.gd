@@ -208,6 +208,21 @@ func aim_point(alliance: String):
 	var z := 14.0 * Config.IN * (1.0 if h["up_side"] == "bottom" else -1.0)
 	return h["body"].global_transform * Vector3(0, -1.5 * Config.IN, z)
 
+## World position of the middle of the raised cell's mouth: where a shot has to go in.
+func mouth_point(alliance: String):
+	var h := hive_of(alliance)
+	if h.is_empty():
+		return null
+	var z := 19.0 * Config.IN * (1.0 if h["up_side"] == "bottom" else -1.0)
+	return h["body"].global_transform * Vector3(0, 6.5 * Config.IN, z)
+
+## Horizontal direction the raised cell's mouth faces (away from the field centre).
+func mouth_outward(alliance: String) -> Vector3:
+	var h := hive_of(alliance)
+	if h.is_empty():
+		return Vector3.ZERO
+	return Vector3(0, 0, 1.0 if h["up_side"] == "bottom" else -1.0)
+
 func hive_of(alliance: String) -> Dictionary:
 	for h in hives:
 		if h["alliance"] == alliance:

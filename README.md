@@ -21,7 +21,7 @@ Driver practice and (later) real-OpMode testing for our FTC robot.
 | Front intake (side A) / back intake (hold) | Right trigger / left trigger | I / K |
 | Reverse the intakes (hold with the above) | Left-stick click | Ctrl |
 | Shooter flywheel on / off | Right bumper | G |
-| Hood up / down | D-pad ↑ / ↓ | ↑ / ↓ |
+| Hood up / down (only when auto-aim is off) | D-pad ↑ / ↓ | ↑ / ↓ |
 | Turret auto-aim on / off | Right-stick click | T |
 | Turret by hand (switches auto-aim off) | D-pad ← / → | Z / X |
 | Front lever / back lever (toggle) | A / B | 1 / 2 |
@@ -56,7 +56,10 @@ groups), so keep those names in Onshape.
 
 The turret turns a full 360° with no end stops (`turret.continuous`; set it to `false` to get the
 ±32° that a 300° servo gives through the 15:70 gears). With auto-aim on, it keeps the shooter
-pointed at the AprilTag under the raised cell of your alliance's hive. A green dotted arc shows
+pointed at the AprilTag under the raised cell of your alliance's hive, and it also sets the hood
+angle and trims the flywheel speed so the shot drops into that cell's mouth (and holds the feeders
+until the flywheel is at that speed). The HUD says when no shot is possible from where you are:
+too close, too far, or on the wrong side of the hive. A green dotted arc shows
 where a shot would go with the current flywheel speed and hood angle. The hood part itself is not
 animated; the arc is how you see it move.
 Levers go 0° (stowed) to 90° (deployed). Both move at a limited speed set in the config.

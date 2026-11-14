@@ -168,6 +168,40 @@ func _run() -> void:
 	await steps(600)
 	check("pollen roll out of the lowered cell", main.field.cell_count("red", false) == 0 and pollen.ball_count() == 8, "%d left in cell" % main.field.cell_count("red", false))
 	check("blue score is untouched", main.field.score["blue"] == 0)
+	# Automatic hood: from several places on the field, a shot lands in the raised red cell.
+	for pose in [Vector3(-58, -48, 0), Vector3(-40, -55, 120), Vector3(30, -60, -90), Vector3(0, -60, 180)]:
+		pollen.clear()
+		main.field.reset_elements(pollen)
+		pollen.clear()
+		robot.reset_pose()
+		robot.set_pose_ftc(pose.x, pose.y, pose.z)
+		robot.aim_point = main.field.aim_point("red")
+		teleop.shot_outward = main.field.mouth_outward("red")
+		robot.feeders = [[1.0], []]
+		await steps(480)  # let the turret come round first: the exit point moves with it
+		var plan: Dictionary = teleop.compute_shot(main.field.mouth_point("red"))
+		robot.hood_servo = plan["hood_servo"]
+		robot.shooter_power = plan["power"]
+		await steps(300)
+		robot.intake_front_power = 1.0
+		await steps(360)
+		robot.intake_front_power = 0.0
+		check("auto hood scores from %s" % str(pose), plan["ok"] and robot.shots_fired == 1 and main.field.cell_count("red", true) == 1,
+			"%s, hood %.1f deg, power %.2f, in cell %d" % [plan["reason"], robot.hood_deg, plan["power"], main.field.cell_count("red", true)])
+	robot.set_pose_ftc(-55, 10, 45)
+	await steps(5)
+	var behind: Dictionary = teleop.compute_shot(main.field.mouth_point("red"))
+	robot.set_pose_ftc(-20, -45, 30)
+	robot.aim_point = main.field.aim_point("red")
+	await steps(480)
+	var near: Dictionary = teleop.compute_shot(main.field.mouth_point("red"))
+	check("right under the hive the shot is reported as too close", not near["ok"] and str(near["reason"]).begins_with("TOO CLOSE"), str(near["reason"]))
+	robot.set_pose_ftc(-55, 10, 45)
+	await steps(5)
+	behind = teleop.compute_shot(main.field.mouth_point("red"))
+	check("from behind the cell's mouth the shot is reported as impossible", not behind["ok"] and behind["reason"] == "WRONG SIDE OF HIVE", str(behind["reason"]))
+	robot.aim_point = null
+	robot.shooter_power = 0.0
 	# A deployed lever against a flower releases its pollen.
 	main.field.reset_elements(pollen)
 	var before: int = pollen.ball_count()

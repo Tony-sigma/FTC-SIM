@@ -303,6 +303,12 @@ func shot_state() -> Array:
 	var dir := (turret_basis.x * cos(a) + Vector3.UP * sin(a)).normalized()
 	return [global_position + turret_basis * _exit_offset, velocity + dir * _exit_speed_max * flywheel_fraction]
 
+func max_exit_speed() -> float:
+	return _exit_speed_max
+
+func hood_limits_deg() -> Vector2:
+	return Vector2(_hood_min, _hood_max)
+
 func is_full() -> bool:
 	return held_total() >= _total_cap
 

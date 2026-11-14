@@ -38,8 +38,8 @@ func _ready() -> void:
 	_help_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	_help_label.modulate = Color(1, 1, 1, 0.8)
 	_help_label.text = "\n".join([
-		"GAMEPAD: left stick drive/strafe · right stick turn · LB slow · RT front intake · LT back intake · RB shooter on/off · D-pad ←/→ turret by hand, ↑/↓ hood · RS click auto-aim · LS click (hold) reverse intakes · A/B levers · Y field-centric · X reset field heading · Start teleop match · Back reset",
-		"KEYS: WASD drive · Q/E turn · Shift slow · I front intake · K back intake · Ctrl reverse · G shooter · T auto-aim · Z/X turret by hand · ↑/↓ hood · 1/2 levers · F field-centric · H reset field heading · Enter teleop match · M full match · R reset · C camera · V collision box · F5 reload config · F1 hide help",
+		"GAMEPAD: left stick drive/strafe · right stick turn · LB slow · RT front intake · LT back intake · RB shooter on/off · D-pad ←/→ turret by hand, ↑/↓ hood (when auto-aim is off) · RS click auto-aim · LS click (hold) reverse intakes · A/B levers · Y field-centric · X reset field heading · Start teleop match · Back reset",
+		"KEYS: WASD drive · Q/E turn · Shift slow · I front intake · K back intake · Ctrl reverse · G shooter · T auto-aim · Z/X turret by hand · ↑/↓ hood (when auto-aim is off) · 1/2 levers · F field-centric · H reset field heading · Enter teleop match · M full match · R reset · C camera · V collision box · F5 reload config · F1 hide help",
 	])
 
 func _label(parent: Node, font_size: int, align: HorizontalAlignment) -> Label:
@@ -72,7 +72,8 @@ func update_hud(d: Dictionary) -> void:
 		"Pollen held: front %d  back %d%s" % [d.held_front, d.held_back, "   FULL - shoot before you can intake more" if d.full else ""],
 		"Hive cells: %s" % d.hive,
 		"Scored: %s" % d.score,
-		"Shooter: %s  %4.0f rpm   hood %2.0f°" % ["ON - hold an intake trigger to fire" if d.flywheel_on else "off", d.flywheel_rpm, d.hood_deg],
+		"Shooter: %s  %4.0f rpm   hood %2.0f°%s" % ["ON - hold an intake trigger to fire" if d.flywheel_on else "off", d.flywheel_rpm, d.hood_deg,
+			("  (%s)" % d.auto_shot) if d.auto_shot != "" else ""],
 		"Turret: %+6.1f°  %s   %s" % [d.turret_deg, "360°" if d.turret_continuous else "limit ±%.1f°" % d.turret_half_range,
 			("AUTO-AIM at %s hive tag" % d.alliance) if d.auto_aim else "manual"],
 		"Levers: front %2.0f°   back %2.0f°" % [d.lever_front_deg, d.lever_back_deg],

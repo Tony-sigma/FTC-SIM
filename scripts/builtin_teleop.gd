@@ -17,6 +17,14 @@ var _turret_rate := 0.6
 var _hood_rate := 0.8
 var flywheel_on := false
 var auto_aim := true
+## Where shots should land (the raised cell's mouth); set by main. Used for the automatic hood.
+var shot_target = null
+## Which way that mouth faces; a shot can only go in from in front of it.
+var shot_outward := Vector3.ZERO
+var _mouth_half_angle := 75.0
+## What the automatic hood decided: "" = not in use, otherwise a short status for the HUD.
+var auto_shot_status := ""
+var _auto_power := 1.0
 var _turret_manual_rate := 90.0
 
 func _ready() -> void:
@@ -101,6 +109,52 @@ func toggle_flywheel() -> void:
 	if active and robot.enabled:
 		flywheel_on = not flywheel_on
 
+## Pick the hood angle (and, when the hood alone cannot do it, the flywheel speed) that lands a
+## shot on `target`. Prefers the steepest arc, so the ball drops into the cell instead of flying in
+## flat and bouncing back out.
+## Returns { ok, hood_servo, power }.
+func compute_shot(target: Vector3) -> Dictionary:
+	var start: Vector3 = robot.shot_state()[0]
+	var flat := Vector2(target.x - start.x, target.z - start.z)
+	var d := flat.length()
+	var h := target.y - start.y
+	var lim: Vector2 = robot.hood_limits_deg()
+	var v_max: float = robot.max_exit_speed()
+	var fallback := {"ok": false, "reason": "OUT OF RANGE", "hood_servo": inverse_lerp(lim.x, lim.y, clampf(45.0, lim.x, lim.y)), "power": 1.0}
+	if shot_outward != Vector3.ZERO and d > 0.01:
+		var from_mouth := Vector3(-flat.x, 0, -flat.y).normalized()
+		if rad_to_deg(from_mouth.angle_to(shot_outward)) > _mouth_half_angle:
+			fallback["reason"] = "WRONG SIDE OF HIVE"
+			return fallback
+	var g := 9.8
+	# No shot at all is possible either because the mouth is too high above us (too close) or too far off.
+	if rad_to_deg(atan2(h, d)) > 40.0:
+		fallback["reason"] = "TOO CLOSE - back away from the hive"
+		fallback["hood_servo"] = 1.0
+	else:
+		fallback["reason"] = "TOO FAR - drive closer"
+	var deg := lim.y
+	var close_call := {}
+	while deg >= lim.x - 0.001:
+		var a := deg_to_rad(deg)
+		var denom := 2.0 * cos(a) * cos(a) * (d * tan(a) - h)
+		if denom > 0.0:
+			var v := sqrt(g * d * d / denom)
+			if v <= v_max:
+				var plan := {"ok": true, "reason": "auto", "hood_servo": inverse_lerp(lim.x, lim.y, deg), "power": v / v_max}
+				# The ball must already be coming down when it reaches the mouth, or it bounces back out.
+				if v * sin(a) - g * d / (v * cos(a)) < 0.0:
+					return plan
+				if close_call.is_empty():
+					plan["ok"] = false
+					plan["reason"] = "TOO CLOSE - back away from the hive"
+					close_call = plan
+		deg -= 0.5
+	if not close_call.is_empty():
+		return close_call
+	# Out of reach: do the best we can (full power, 45 degrees or the nearest the hood allows).
+	return fallback
+
 func toggle_lever(front: bool) -> void:
 	if not active or not robot.enabled:
 		return
@@ -119,16 +173,28 @@ func _physics_process(dt: float) -> void:
 			auto_aim = false
 		robot.turret_servo = clampf(robot.turret_servo + turret_in * _turret_rate * dt, 0.0, 1.0)
 		robot.turret_goal_deg = wrapf(robot.turret_goal_deg + turret_in * _turret_manual_rate * dt, -180.0, 180.0)
-		# Hood: D-pad up/down or arrow keys.
-		var hood := _key_axis(KEY_DOWN, KEY_UP) + _pad_btn(JOY_BUTTON_DPAD_UP) - _pad_btn(JOY_BUTTON_DPAD_DOWN)
-		robot.hood_servo = clampf(robot.hood_servo + hood * _hood_rate * dt, 0.0, 1.0)
+		# Hood: set automatically while auto-aim is on, otherwise D-pad up/down or arrow keys.
+		_auto_power = 1.0
+		auto_shot_status = ""
+		if auto_aim and shot_target != null:
+			var shot := compute_shot(shot_target)
+			robot.hood_servo = shot["hood_servo"]
+			_auto_power = shot["power"]
+			auto_shot_status = shot["reason"]
+		else:
+			var hood := _key_axis(KEY_DOWN, KEY_UP) + _pad_btn(JOY_BUTTON_DPAD_UP) - _pad_btn(JOY_BUTTON_DPAD_DOWN)
+			robot.hood_servo = clampf(robot.hood_servo + hood * _hood_rate * dt, 0.0, 1.0)
 		# Intakes: right trigger = front (A side), left trigger = back. Hold Ctrl / left-stick click to reverse.
 		var rev := -1.0 if (Input.is_physical_key_pressed(KEY_CTRL) or _pad_btn(JOY_BUTTON_LEFT_STICK) > 0.0) else 1.0
 		var front := maxf(_pad_axis(JOY_AXIS_TRIGGER_RIGHT), 1.0 if Input.is_physical_key_pressed(KEY_I) else 0.0)
 		var back := maxf(_pad_axis(JOY_AXIS_TRIGGER_LEFT), 1.0 if Input.is_physical_key_pressed(KEY_K) else 0.0)
+		robot.shooter_power = _auto_power if flywheel_on else 0.0
+		# With the automatic hood, hold the feeders until the flywheel is at the speed the shot needs.
+		if flywheel_on and auto_shot_status != "" and rev > 0.0 and absf(robot.flywheel_fraction - robot.shooter_power) > 0.015 and robot.held_total() > 0:
+			front = 0.0
+			back = 0.0
 		robot.intake_front_power = front * rev
 		robot.intake_back_power = back * rev
-		robot.shooter_power = 1.0 if flywheel_on else 0.0
 	else:
 		flywheel_on = false
 	var in_ := read_sticks()

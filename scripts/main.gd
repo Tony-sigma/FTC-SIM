@@ -129,6 +129,7 @@ func _process(_dt: float) -> void:
 		"turret_half_range": robot.turret_range_deg() / 2.0,
 		"turret_continuous": robot.turret_continuous,
 		"auto_aim": teleop.auto_aim,
+		"auto_shot": teleop.auto_shot_status,
 		"alliance": _alliance,
 		"full": robot.is_full(),
 		"lever_front_deg": robot.lever_front_deg,
@@ -141,6 +142,8 @@ func _physics_process(_dt: float) -> void:
 	robot.enabled = match_timer.driver_enabled()
 	if teleop.active:  # when something else drives the robot (tests, later the Java bridge) it sets the aim itself
 		robot.aim_point = field.aim_point(_alliance) if teleop.auto_aim else null
+		teleop.shot_target = field.mouth_point(_alliance)
+		teleop.shot_outward = field.mouth_outward(_alliance)
 	field.update_flowers(robot, pollen, _dt)
 	field.update_hives(_dt)
 
