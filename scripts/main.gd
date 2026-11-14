@@ -121,6 +121,7 @@ func _process(_dt: float) -> void:
 		"flywheel_rpm": robot.flywheel_rpm(),
 		"flywheel_on": teleop.flywheel_on,
 		"hood_deg": robot.hood_deg,
+		"score": "red %d  (tips %d)     blue %d  (tips %d)" % [field.score["red"], field.tips["red"], field.score["blue"], field.tips["blue"]],
 		"hive": "red up %d low %d   blue up %d low %d" % [field.cell_count("red", true), field.cell_count("red", false), field.cell_count("blue", true), field.cell_count("blue", false)],
 		"turret_deg": robot.turret_deg,
 		"turret_half_range": robot.turret_range_deg() / 2.0,
@@ -133,6 +134,7 @@ func _process(_dt: float) -> void:
 func _physics_process(_dt: float) -> void:
 	robot.enabled = match_timer.driver_enabled()
 	field.update_flowers(robot, pollen, _dt)
+	field.update_hives(_dt)
 
 func reset_all() -> void:
 	match_timer.reset()

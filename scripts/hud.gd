@@ -71,6 +71,7 @@ func update_hud(d: Dictionary) -> void:
 		"Speed: %4.1f in/s  (max %.1f)" % [d.speed_in, d.max_speed_in],
 		"Pollen held: front %d  back %d" % [d.held_front, d.held_back],
 		"Hive cells: %s" % d.hive,
+		"Scored: %s" % d.score,
 		"Shooter: %s  %4.0f rpm   hood %2.0f°" % ["ON " if d.flywheel_on else "off", d.flywheel_rpm, d.hood_deg],
 		"Turret: %+5.1f°  (limit ±%.1f°)" % [d.turret_deg, d.turret_half_range],
 		"Levers: front %2.0f°   back %2.0f°" % [d.lever_front_deg, d.lever_back_deg],

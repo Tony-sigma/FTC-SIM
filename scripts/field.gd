@@ -9,8 +9,16 @@ var layout: Dictionary = {}
 var elements: Dictionary = {}
 ## Each flower: { pos: Vector3, inward: Vector3, capacity: int, count: int, timer: float, label: Label3D }
 var flowers: Array = []
-## Each cell: { name: String, alliance: String, up: bool, area: Area3D }
+## Each cell: { name, alliance, up, area: Area3D, body, outer: CollisionShape3D, outer_mesh, sign, state, t }
 var cells: Array = []
+## Pollen scored per alliance (counted when that alliance's hive tips).
+var score := {"red": 0, "blue": 0}
+var tips := {"red": 0, "blue": 0}
+
+var _tip_n := 8
+var _tip_angle := 0.52
+var _tip_time := 0.8
+var _tip_reset := 3.0
 
 var _k := 1.0            # metres per data inch (data is on a nominal 144 in field)
 var _flower_radius := 0.084
@@ -121,6 +129,10 @@ func _build_hives() -> void:
 	var bar_h := Config.inches("field.frame_bar_height_in", 1.5)       # GUESS
 	var wall_h := Config.inches("field.cell_wall_height_in", 5.0)      # GUESS
 	var up_h := Config.inches("field.up_cell_floor_height_in", 12.0)   # GUESS
+	_tip_n = int(Config.num("field.hive_tip_pollen", 8))
+	_tip_angle = deg_to_rad(Config.num("field.hive_tip_angle_deg", 30.0))
+	_tip_time = Config.num("field.hive_tip_time_s", 0.8)
+	_tip_reset = Config.num("field.hive_reset_after_s", 3.0)
 	for b in layout.get("frame_bars", []):
 		var r: Array = b["rect"]
 		var body := StaticBody3D.new()
@@ -139,19 +151,24 @@ func _build_hives() -> void:
 			var w: float = cs_in[0] * _k
 			var d: float = cs_in[1] * _k
 			var t := 0.01
-			var body := StaticBody3D.new()
+			# The raised cell can tip, so it is a body that is allowed to move.
+			var body: PhysicsBody3D = AnimatableBody3D.new() if is_up else StaticBody3D.new()
 			body.position = base
 			add_child(body)
 			var c := Color(col.r, col.g, col.b, 0.5)
+			# The cell's mouth faces away from the field centre: top cell -> back wall, bottom cell -> audience.
+			var out_sign := -1.0 if side == "top" else 1.0
 			_add_box(body, Vector3(w, t, d), Vector3(0, t / 2, 0), c)
-			_add_box(body, Vector3(w, wall_h, t), Vector3(0, wall_h / 2, -d / 2), c)
-			_add_box(body, Vector3(w, wall_h, t), Vector3(0, wall_h / 2, d / 2), c)
+			_add_box(body, Vector3(w, wall_h, t), Vector3(0, wall_h / 2, -out_sign * d / 2), c)
+			_add_box(body, Vector3(w, wall_h, t), Vector3(0, wall_h / 2, out_sign * d / 2), c)
+			var outer: CollisionShape3D = body.get_child(body.get_child_count() - 2)
+			var outer_mesh: MeshInstance3D = body.get_child(body.get_child_count() - 1)
 			_add_box(body, Vector3(t, wall_h, d), Vector3(-w / 2, wall_h / 2, 0), c)
 			_add_box(body, Vector3(t, wall_h, d), Vector3(w / 2, wall_h / 2, 0), c)
 			if is_up:
 				for sx in [-1.0, 1.0]:
 					for sz in [-1.0, 1.0]:
-						_add_box(body, Vector3(0.03, up_h, 0.03), Vector3(sx * (w / 2 - 0.015), -up_h / 2, sz * (d / 2 - 0.015)), Color(0.75, 0.76, 0.8))
+						_mesh(Vector3(0.03, up_h, 0.03), base + Vector3(sx * (w / 2 - 0.015), -up_h / 2, sz * (d / 2 - 0.015)), Color(0.75, 0.76, 0.8))
 			var area := Area3D.new()
 			area.collision_layer = 0
 			area.collision_mask = 2
@@ -162,7 +179,8 @@ func _build_hives() -> void:
 			area.add_child(acs)
 			area.position = base + Vector3(0, wall_h * 0.4 + t, 0)
 			add_child(area)
-			cells.append({"name": "%s %s" % [h["alliance"], "up" if is_up else "low"], "alliance": str(h["alliance"]), "up": is_up, "area": area})
+			cells.append({"name": "%s %s" % [h["alliance"], "up" if is_up else "low"], "alliance": str(h["alliance"]), "up": is_up, "area": area,
+				"body": body, "outer": outer, "outer_mesh": outer_mesh, "sign": out_sign, "state": "idle", "t": 0.0})
 
 ## How many balls are resting in the given alliance's cell.
 func cell_count(alliance: String, up: bool) -> int:
@@ -171,9 +189,49 @@ func cell_count(alliance: String, up: bool) -> int:
 			return c["area"].get_overlapping_bodies().size()
 	return 0
 
+## The hive rule: when the raised cell holds enough pollen it tips. The pollen inside at that moment
+## are scored; then they spill out of the cell's mouth and the cell comes back up.
+func update_hives(dt: float) -> void:
+	for c in cells:
+		if not c["up"]:
+			continue
+		match c["state"]:
+			"idle":
+				var n: int = c["area"].get_overlapping_bodies().size()
+				if n >= _tip_n:
+					score[c["alliance"]] += n
+					tips[c["alliance"]] += 1
+					c["state"] = "tipped"
+					c["t"] = 0.0
+					c["outer"].disabled = true
+					c["outer_mesh"].visible = false
+			"tipped":
+				c["t"] += dt
+				c["body"].rotation.x = c["sign"] * _tip_angle * clampf(c["t"] / _tip_time, 0.0, 1.0)
+				if c["t"] >= _tip_reset:
+					c["state"] = "returning"
+					c["t"] = 0.0
+			"returning":
+				c["t"] += dt
+				c["body"].rotation.x = c["sign"] * _tip_angle * (1.0 - clampf(c["t"] / 0.5, 0.0, 1.0))
+				if c["t"] >= 0.5:
+					_reset_cell(c)
+
+func _reset_cell(c: Dictionary) -> void:
+	c["state"] = "idle"
+	c["t"] = 0.0
+	c["body"].rotation.x = 0.0
+	c["outer"].disabled = false
+	c["outer_mesh"].visible = true
+
 ## Put every game piece back where a match starts.
 func reset_elements(pollen) -> void:
 	pollen.clear()
+	score = {"red": 0, "blue": 0}
+	tips = {"red": 0, "blue": 0}
+	for c in cells:
+		if c["up"]:
+			_reset_cell(c)
 	for f in flowers:
 		f["count"] = f["capacity"]
 		f["timer"] = 0.0

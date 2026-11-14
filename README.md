@@ -74,8 +74,11 @@ cells, and where every pollen starts. The robot starts with 4 pollen loaded.
 
 Those files do not give heights or how things move, so these are **guesses** (in
 `robot_config.json` under `field`): flower and cell heights, a deployed lever held against a flower
-making it drop its pollen, and hive cells being plain fixed bins (the real hive tips; nectar is not
-modelled). The HUD shows how many balls sit in each cell; there is no scoring yet.
+making it drop its pollen, and the hive's tip angle, timing and reset. Nectar is not modelled.
+
+**Hive rule:** when the raised cell of a hive holds 8 pollen it tips. The pollen inside at that
+moment are scored for that alliance; they then spill out and the cell comes back up. Pollen that
+left the cell before the tip do not count. The HUD shows balls per cell and the score.
 
 The driver stands behind the red wall (left) by default; set `driver.alliance` to `blue` to switch.
 

@@ -141,6 +141,24 @@ func _run() -> void:
 	pollen.spawn_ball(cell_area.global_position + Vector3(0, 0.4, 0))
 	await steps(180)
 	check("hive cell counts a ball", cell_area.get_overlapping_bodies().size() == 1)
+	# Hive rule: 7 pollen do nothing, the 8th tips the hive and all 8 score.
+	pollen.clear()
+	var up_cell = null
+	for c in main.field.cells:
+		if c["alliance"] == "red" and c["up"]:
+			up_cell = c
+	var drop: Vector3 = up_cell["area"].global_position
+	for i in 7:
+		pollen.spawn_ball(drop + Vector3((i % 4 - 1.5) * 0.09, 0.25, (i / 4 - 0.5) * 0.1))
+		await steps(40)
+	await steps(120)
+	check("7 pollen in the hive: no tip, nothing scored", main.field.score["red"] == 0 and up_cell["state"] == "idle" and main.field.cell_count("red", true) == 7, "%d in cell" % main.field.cell_count("red", true))
+	pollen.spawn_ball(drop + Vector3(0, 0.25, 0))
+	await steps(90)
+	check("8th pollen tips the hive and 8 are scored", main.field.score["red"] == 8 and main.field.tips["red"] == 1 and up_cell["state"] != "idle", "score %d" % main.field.score["red"])
+	await steps(480)
+	check("pollen spill out and the hive comes back up", main.field.cell_count("red", true) == 0 and up_cell["state"] == "idle" and pollen.ball_count() == 8, "%d left in cell" % main.field.cell_count("red", true))
+	check("blue score is untouched", main.field.score["blue"] == 0)
 	# A deployed lever against a flower releases its pollen.
 	main.field.reset_elements(pollen)
 	var before: int = pollen.ball_count()
