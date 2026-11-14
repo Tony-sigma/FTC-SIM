@@ -125,40 +125,32 @@ func _build_flowers() -> void:
 		flowers.append({"pos": pos, "inward": inward, "capacity": int(f.get("pollen", 4)), "count": 0, "timer": 0.0, "label": label})
 
 func _build_hives() -> void:
-	var bar_h := Config.inches("field.frame_bar_height_in", 1.5)       # GUESS
-	_tip_n = int(Config.num("field.hive_tip_pollen", 8))
-	_tip_angle = deg_to_rad(Config.num("field.hive_tip_angle_deg", 30.0))
-	_tip_time = Config.num("field.hive_tip_time_s", 0.8)
-	for b in layout.get("frame_bars", []):
-		var r: Array = b["rect"]
-		var body := StaticBody3D.new()
-		body.position = to_world(r[0] + r[2] / 2.0, r[1] + r[3] / 2.0, bar_h / 2.0)
-		add_child(body)
-		var sz := Vector3(r[2] * _k, bar_h, r[3] * _k)
-		_add_box(body, sz, Vector3.ZERO, Color(0.75, 0.76, 0.8))
-	var pivot_h := Config.inches("field.hive_pivot_height_in", 15.0)   # GUESS
+	# The A-frame the hives hang from. Its CAD is centred on the field; its long side lies along our x.
+	if ResourceLoader.exists("res://models/field/hive_frame.glb"):
+		var frame := StaticBody3D.new()
+		frame.rotation.y = PI / 2.0
+		add_child(frame)
+		_add_model_with_collision(frame, load("res://models/field/hive_frame.glb"))
+	else:
+		for b in layout.get("frame_bars", []):
+			var r: Array = b["rect"]
+			var bar := StaticBody3D.new()
+			bar.position = to_world(r[0] + r[2] / 2.0, r[1] + r[3] / 2.0, 0.02)
+			add_child(bar)
+			_add_box(bar, Vector3(r[2] * _k, 0.04, r[3] * _k), Vector3.ZERO, Color(0.75, 0.76, 0.8))
+	var pivot_h := Config.inches("field.hive_pivot_height_in", 43.03)
 	var off: float = float(layout.get("cell_offset_in", 15.44)) * _k
-	var model = load("res://models/field/red_hive.glb") if ResourceLoader.exists("res://models/field/red_hive.glb") else null
 	for h in layout.get("hives", []):
 		var alliance := str(h["alliance"])
 		# The whole seesaw is one moving body, pivoting about its centre (the model's origin).
 		var body := AnimatableBody3D.new()
-		body.collision_layer = 4   # pollen collide with it; the robot is kept out by the box below
+		body.collision_layer = 4   # only pollen collide with the hive; robots drive underneath it
 		body.collision_mask = 0
 		body.position = to_world(h["x"], 72.0, pivot_h)
 		add_child(body)
-		if model is PackedScene:
-			var inst: Node3D = model.instantiate()
-			body.add_child(inst)
-			for mi in inst.find_children("*", "MeshInstance3D", true, false):
-				var shape: ConcavePolygonShape3D = mi.mesh.create_trimesh_shape()
-				shape.backface_collision = true
-				var cs := CollisionShape3D.new()
-				cs.shape = shape
-				body.add_child(cs)
-				cs.global_transform = mi.global_transform
-				if alliance == "blue":
-					_recolor_blue(mi)
+		var path := "res://models/field/%s_hive.glb" % alliance
+		if ResourceLoader.exists(path):
+			_add_model_with_collision(body, load(path))
 		var areas := {}
 		for side in ["top", "bottom"]:
 			var area := Area3D.new()
@@ -172,28 +164,21 @@ func _build_hives() -> void:
 			area.position = Vector3(0, 5.6 * Config.IN, (-off if side == "top" else off))
 			body.add_child(area)
 			areas[side] = area
-		# Robots cannot drive through the hive.
-		var keep_out := StaticBody3D.new()
-		keep_out.collision_layer = 8
-		keep_out.collision_mask = 0
-		var kcs := CollisionShape3D.new()
-		var kbox := BoxShape3D.new()
-		kbox.size = Vector3(21.0 * Config.IN, 1.0, 43.0 * Config.IN)
-		kcs.shape = kbox
-		keep_out.add_child(kcs)
-		keep_out.position = to_world(h["x"], 72.0, 0.5)
-		add_child(keep_out)
 		var hive := {"alliance": alliance, "body": body, "start_side": str(h.get("up_cell", "top")), "up_side": "", "angle": 0.0, "areas": areas}
 		hives.append(hive)
 		_set_hive(hive, hive["start_side"], true)
 
-func _recolor_blue(mi: MeshInstance3D) -> void:
-	for i in mi.mesh.get_surface_count():
-		var m = mi.mesh.surface_get_material(i)
-		if m is StandardMaterial3D and m.albedo_color.r > 0.6 and m.albedo_color.g < 0.4:
-			var m2: StandardMaterial3D = m.duplicate()
-			m2.albedo_color = Color(0.2, 0.35, 0.9)
-			mi.set_surface_override_material(i, m2)
+## Show a CAD model under `body` and give it mesh collision that matches what you see.
+func _add_model_with_collision(body: PhysicsBody3D, scene: PackedScene) -> void:
+	var inst: Node3D = scene.instantiate()
+	body.add_child(inst)
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var shape: ConcavePolygonShape3D = mi.mesh.create_trimesh_shape()
+		shape.backface_collision = true
+		var cs := CollisionShape3D.new()
+		cs.shape = shape
+		body.add_child(cs)
+		cs.global_transform = mi.global_transform
 
 ## Tilt so the given cell is the raised one. A negative angle about X lifts the +z ("bottom", audience) end.
 func _target_angle(side: String) -> float:

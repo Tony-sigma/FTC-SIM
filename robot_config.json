@@ -19,9 +19,8 @@
     "flower_height_in": 17.5,
     "flower_release_interval_s": 0.35,
     "flower_lever_reach_in": 2.5,
-    "frame_bar_height_in": 1.5,
-    "hive_pivot_height_in": 15.0,
-    "_hive_note": "The hive is a seesaw (model: cad/field/red_hive.glb): two cells on a centre pivot, each open at its outer end. Rule from the team: at hive_tip_pollen pollen in the raised cell it tips, and the pollen inside at that moment count as scored. They then roll out of the lowered cell and the other cell becomes the raised one. Pivot height, tilt angle and tip time are guesses.",
+    "hive_pivot_height_in": 43.03,
+    "_hive_note": "The hive is a seesaw on top of the A-frame (models in cad/field/). The pivot height is the axle holder height measured from the frame CAD. Rule from the team: at hive_tip_pollen pollen in the raised cell it tips, and the pollen inside at that moment count as scored. They then roll out of the lowered cell and the other cell becomes the raised one. Tilt angle and tip time are guesses.",
     "hive_tip_pollen": 8,
     "hive_tip_angle_deg": 30.0,
     "hive_tip_time_s": 0.8

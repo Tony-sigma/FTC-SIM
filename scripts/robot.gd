@@ -87,7 +87,7 @@ var _lever_nodes: Array[Node3D] = []
 func _ready() -> void:
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
 	collision_layer = 1
-	collision_mask = 1 | 8  # walls and hive keep-out; pollen (layer 2) never blocks the robot, the robot pushes it
+	collision_mask = 1  # walls, flowers, hive frame; pollen (layer 2) never blocks the robot, the robot pushes it
 	apply_config()
 	reset_pose()
 
