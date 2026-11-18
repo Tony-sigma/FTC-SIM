@@ -192,7 +192,7 @@ func _run() -> void:
 	robot.set_pose_ftc(-55, 10, 45)
 	await steps(5)
 	var behind: Dictionary = teleop.compute_shot(main.field.mouth_point("red"))
-	robot.set_pose_ftc(-20, -45, 30)
+	robot.set_pose_ftc(-13, -30, 0)
 	robot.aim_point = main.field.aim_point("red")
 	await steps(480)
 	var near: Dictionary = teleop.compute_shot(main.field.mouth_point("red"))

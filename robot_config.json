@@ -60,8 +60,9 @@
     "speed_drop_per_shot": 0.25,
     "min_speed_fraction_to_shoot": 0.2,
     "shot_interval_s": 0.25,
-    "hood_min_deg": 30.0,
-    "hood_max_deg": 60.0,
+    "_hood_note": "The sim measures the shot angle UP FROM THE FLOOR (0 = flat, 90 = straight up). The team measures from vertical (0 = straight up, 90 = flat forward): their hood goes from P0 = 13.726 to PF = 34.526, which is 76.274 down to 55.474 here. Servo 0 = flattest (PF), servo 1 = steepest (P0).",
+    "hood_min_deg": 55.474,
+    "hood_max_deg": 76.274,
     "hood_speed_deg_per_s": 90.0,
     "exit_offset_m": [0.1, 0.5, 0.0]
   },
