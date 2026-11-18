@@ -25,7 +25,7 @@ var _mouth_half_angle := 75.0
 ## What the automatic hood decided: "" = not in use, otherwise a short status for the HUD.
 var auto_shot_status := ""
 var _auto_power := 1.0
-var _manual_power := 0.27
+var _manual_power := 0.22
 var _turret_manual_rate := 90.0
 
 func _ready() -> void:
@@ -39,7 +39,7 @@ func apply_config() -> void:
 	_turn_scale = Config.num("driver.turn_scale", 1.0)
 	_turret_rate = Config.num("driver.turret_nudge_per_s", 0.6)
 	_hood_rate = Config.num("driver.hood_nudge_per_s", 0.8)
-	_manual_power = Config.num("driver.manual_shooter_power", 0.27)
+	_manual_power = Config.num("driver.manual_shooter_power", 0.22)
 	_turret_manual_rate = Config.num("driver.turret_manual_deg_per_s", 90.0)
 
 func gamepad_id() -> int:
