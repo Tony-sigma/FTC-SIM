@@ -71,7 +71,7 @@ func _run() -> void:
 	ok = await wait_for(func(): return bridge.phase == "run", 5.0)
 	check("TeleOp runs after start, built-in TeleOp is off", ok and not main.teleop.active)
 	await steps(120)
-	check("flywheel spins up from the OpMode's setPower", robot.flywheel_fraction > 0.9, "%.2f" % robot.flywheel_fraction)
+	check("flywheel spins up from the OpMode's setPower", absf(robot.flywheel_fraction - 0.27) < 0.02, "%.2f" % robot.flywheel_fraction)
 	key(KEY_W, true)
 	await steps(120)
 	key(KEY_W, false)

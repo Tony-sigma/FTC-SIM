@@ -36,6 +36,8 @@ public class BiobuzzTeleOp extends OpMode {
     private boolean lastA, lastB, lastY, lastStick;
     /** AprilTag IDs under OUR hive's two cells. PLACEHOLDERS: use the numbers from the game manual. */
     private static final int[] OUR_TAGS = {1, 2};
+    /** The 5000 rpm shooter is far faster than a shot needs; about a quarter power reaches the hive. Tune this. */
+    private static final double SHOOTER_POWER = 0.27;
     private boolean autoAim = false;
     private static final double sweep = 0.003;
 
@@ -105,8 +107,8 @@ public class BiobuzzTeleOp extends OpMode {
         double feed = gamepad1.right_bumper ? -1.0 : ((shoot || intake) ? 1.0 : 0.0);
         intakeA.setPower(feed);
         intakeB.setPower(feed);
-        shooterLeft.setPower(1.0);                    // flywheel always spinning
-        shooterRight.setPower(1.0);
+        shooterLeft.setPower(SHOOTER_POWER);          // flywheel always spinning
+        shooterRight.setPower(SHOOTER_POWER);
         gateServo.setPosition(shoot ? 1.0 : 0.0);     // the gate lets pollen through only while shooting
 
         // ---- turret, hood, levers ----

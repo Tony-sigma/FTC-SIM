@@ -127,9 +127,9 @@ func _run() -> void:
 	check("ball waits at the neck while the flywheel is off", robot.held_count(0) == 1 and robot.shots_fired == 0)
 	robot.intake_front_power = 0.0
 	robot.set_pose_ftc(-50, -50, 90)  # a lane where the shot does not hit the hive frame
-	robot.shooter_power = 1.0
+	robot.shooter_power = 0.27
 	await steps(240)
-	check("flywheel alone does not fire", robot.shots_fired == 0 and robot.flywheel_fraction > 0.95)
+	check("flywheel alone does not fire", robot.shots_fired == 0 and absf(robot.flywheel_fraction - 0.27) < 0.01)
 	var start: Vector3 = robot.global_position
 	robot.intake_front_power = 1.0
 	await steps(30)

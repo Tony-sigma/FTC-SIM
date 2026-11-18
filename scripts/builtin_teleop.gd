@@ -25,6 +25,7 @@ var _mouth_half_angle := 75.0
 ## What the automatic hood decided: "" = not in use, otherwise a short status for the HUD.
 var auto_shot_status := ""
 var _auto_power := 1.0
+var _manual_power := 0.27
 var _turret_manual_rate := 90.0
 
 func _ready() -> void:
@@ -38,6 +39,7 @@ func apply_config() -> void:
 	_turn_scale = Config.num("driver.turn_scale", 1.0)
 	_turret_rate = Config.num("driver.turret_nudge_per_s", 0.6)
 	_hood_rate = Config.num("driver.hood_nudge_per_s", 0.8)
+	_manual_power = Config.num("driver.manual_shooter_power", 0.27)
 	_turret_manual_rate = Config.num("driver.turret_manual_deg_per_s", 90.0)
 
 func gamepad_id() -> int:
@@ -170,7 +172,7 @@ func _physics_process(dt: float) -> void:
 		robot.turret_servo = clampf(robot.turret_servo + turret_in * _turret_rate * dt, 0.0, 1.0)
 		robot.turret_goal_deg = wrapf(robot.turret_goal_deg + turret_in * _turret_manual_rate * dt, -180.0, 180.0)
 		# Hood: set automatically while auto-aim is on, otherwise D-pad up/down or arrow keys.
-		_auto_power = 1.0
+		_auto_power = _manual_power
 		auto_shot_status = ""
 		if auto_aim and shot_target != null:
 			var shot := compute_shot(shot_target)
@@ -188,7 +190,7 @@ func _physics_process(dt: float) -> void:
 		var reverse := Input.is_physical_key_pressed(KEY_B) or _pad_btn(JOY_BUTTON_RIGHT_SHOULDER) > 0.0
 		robot.shooter_power = _auto_power
 		# With the automatic hood, wait for the flywheel to reach the speed the shot needs.
-		var ready := auto_shot_status == "" or absf(robot.flywheel_fraction - robot.shooter_power) <= 0.015
+		var ready := auto_shot_status == "" or absf(robot.flywheel_fraction - robot.shooter_power) <= 0.02 * maxf(robot.shooter_power, 0.05)
 		robot.gate_open = shoot and ready
 		var feed := -1.0 if reverse else maxf(intake, 1.0 if shoot else 0.0)
 		robot.intake_front_power = feed
