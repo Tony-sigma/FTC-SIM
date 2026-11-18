@@ -32,7 +32,7 @@ public class BiobuzzTeleOp extends OpMode {
     private Limelight3A limelight;
 
     private double turret = 0.5, hood = 0.5;
-    private boolean fieldCentric = false, leverFrontOut = false, leverBackOut = false;
+    private boolean fieldCentric = true, leverFrontOut = false, leverBackOut = false;
     private boolean lastA, lastB, lastY, lastStick;
     /** AprilTag IDs under OUR hive's two cells. PLACEHOLDERS: use the numbers from the game manual. */
     private static final int[] OUR_TAGS = {1, 2};

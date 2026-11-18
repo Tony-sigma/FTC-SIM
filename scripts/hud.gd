@@ -62,8 +62,8 @@ func _ready() -> void:
 	_help_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	_help_label.modulate = Color(1, 1, 1, 0.8)
 	_help_label.text = "\n".join([
-		"GAMEPAD: left stick drive/strafe · right stick turn · LT intake · RT shoot · RB (hold) spit out · LB slow · RS click auto-aim · D-pad turret/hood by hand · A/B levers · Y field-centric · X reset field heading · Start match · Back reset",
-		"KEYS: WASD drive · Q/E turn · Shift intake · Space shoot · B (hold) spit out · Ctrl slow · T auto-aim · Z/X turret, ↑/↓ hood by hand · 1/2 levers · F field-centric · H reset field heading · Enter match · M full match · R reset · C camera · J run Java OpMode · F1 hide help",
+		"GAMEPAD: left stick drive/strafe · right stick turn · LT intake · RT shoot · RB (hold) spit out · LB slow · RS click auto-aim · D-pad turret/hood by hand · A/B levers · Y player-view / robot-centric drive · Start match · Back reset",
+		"KEYS: WASD drive · Q/E turn · Shift intake · Space shoot · B (hold) spit out · Ctrl slow · T auto-aim · Z/X turret, ↑/↓ hood by hand · 1/2 levers · F player-view / robot-centric drive · Enter match · M full match · R reset · C camera · J run Java OpMode · F1 hide help",
 	])
 
 func _label(parent: Node, font_size: int, align: HorizontalAlignment) -> Label:
@@ -95,7 +95,7 @@ func update_hud(d: Dictionary) -> void:
 	_java_label.text = d.java
 	var pose: Vector3 = d.pose
 	_info_label.text = "\n".join([
-		"Drive: %s" % ("Java OpMode" if d.java_driving else ("%s%s" % ["FIELD-centric" if d.field_centric else "ROBOT-centric", "  (SLOW)" if d.slow else ""])),
+		"Drive: %s" % ("Java OpMode" if d.java_driving else ("%s%s" % ["PLAYER VIEW (W = away from you)" if d.field_centric else "ROBOT-centric (W = robot's front)", "  (SLOW)" if d.slow else ""])),
 		"Pose:  x %6.1f in   y %6.1f in   heading %6.1f°" % [pose.x, pose.y, pose.z],
 		"Speed: %4.1f in/s  (max %.1f)" % [d.speed_in, d.max_speed_in],
 		"Pollen held: front %d  back %d%s" % [d.held_front, d.held_back, "   FULL" if d.full else ""],

@@ -106,7 +106,18 @@ func _build_cameras() -> void:
 	_cams = [driver, top, chase]
 	_cams[_cam_index].make_current()
 
+## "Up on the screen" for the camera in use, flattened onto the floor.
+func _view_forward() -> Vector3:
+	var cam := _cams[_cam_index]
+	var f := -cam.global_transform.basis.z
+	f.y = 0.0
+	if f.length() < 0.2:  # looking straight down: use the top of the picture instead
+		f = cam.global_transform.basis.y
+		f.y = 0.0
+	return f.normalized()
+
 func _process(_dt: float) -> void:
+	teleop.view_forward = _view_forward()
 	var chase := _cams[2]
 	var back: Vector3 = robot.global_transform.basis.z
 	chase.global_position = chase.global_position.lerp(robot.global_position + back * 1.3 + Vector3(0, 1.0, 0), 0.15)
@@ -256,7 +267,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		match event.physical_keycode:
 			KEY_J: _open_java_menu()
 			KEY_F: teleop.field_centric = not teleop.field_centric
-			KEY_H: teleop.reset_field_heading()
 			KEY_ENTER, KEY_KP_ENTER: _start_pressed()
 			KEY_M: match_timer.start_full_match()
 			KEY_R: reset_all()
@@ -272,7 +282,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		match event.button_index:
 			JOY_BUTTON_Y: teleop.field_centric = not teleop.field_centric
-			JOY_BUTTON_X: teleop.reset_field_heading()
 			JOY_BUTTON_START: _start_pressed()
 			JOY_BUTTON_BACK: reset_all()
 			JOY_BUTTON_RIGHT_STICK: teleop.auto_aim = not teleop.auto_aim

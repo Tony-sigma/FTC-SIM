@@ -6,7 +6,9 @@ extends Node
 var robot  # scripts/robot.gd
 var active := true
 var field_centric := false
-## The robot yaw (Godot rotation.y) that counts as "pointing away from the driver".
+## Player's-view driving: which way "up on the screen" points on the field (flat, world space).
+## Main sets it from the camera in use, so W always drives away from you whatever way the robot faces.
+var view_forward := Vector3(1, 0, 0)
 var heading_offset := 0.0
 var slow := false
 
@@ -50,7 +52,7 @@ func gamepad_name() -> String:
 	var id := gamepad_id()
 	return Input.get_joy_name(id) if id >= 0 else ""
 
-## Make the robot's current facing the new "forward" for field-centric (like an IMU yaw reset).
+## Kept for older callers; player's-view driving follows the camera and needs no reset.
 func reset_field_heading() -> void:
 	heading_offset = robot.rotation.y
 
@@ -83,15 +85,16 @@ static func mix(f: float, s: float, t: float) -> Array[float]:
 
 func compute_powers(f: float, s: float, t: float) -> Array[float]:
 	if field_centric:
-		var yaw: float = robot.rotation.y - heading_offset
-		var rf := f * cos(yaw) - s * sin(yaw)
-		var rs := f * sin(yaw) + s * cos(yaw)
-		f = rf
-		s = rs
+		# The stick says where to go as the player sees it; turn that into the robot's own forward/right.
+		var view_right := view_forward.cross(Vector3.UP)
+		var want := view_forward * f + view_right * s
+		var robot_fwd: Vector3 = -robot.global_transform.basis.z
+		var robot_right: Vector3 = robot.global_transform.basis.x
+		f = want.dot(robot_fwd)
+		s = want.dot(robot_right)
 	var scale := _slow_scale if slow else 1.0
 	return mix(f * scale, s * scale, t * _turn_scale * scale)
 
-## -1 = turret right, +1 = turret left (D-pad left/right, or Z / X keys).
 func read_turret() -> float:
 	var t := _key_axis(KEY_X, KEY_Z)
 	var id := gamepad_id()

@@ -234,15 +234,31 @@ func _run() -> void:
 	robot.reset_pose()
 	await steps(5)
 
-	# Field-centric: robot facing left, stick forward must still drive away from the driver.
-	robot.reset_pose()
-	teleop.reset_field_heading()
-	robot.set_pose_ftc(-50, -50, 180)
+	# Player's-view driving: W goes away from the player whatever way the robot faces.
 	teleop.field_centric = true
-	robot.wheel_powers = teleop.compute_powers(1, 0, 0)
-	await steps(120)
-	p = robot.get_pose_ftc()
-	check("field-centric forward = away from driver", p.y > -30 and absf(p.x + 50) < 0.5, str(p))
+	for case in [[Vector3(1, 0, 0), 180.0, "driver camera, robot facing the driver"], [Vector3(1, 0, 0), 90.0, "driver camera, robot facing sideways"],
+			[Vector3(0, 0, -1), 0.0, "top-down camera, robot facing right"]]:
+		robot.reset_pose()
+		robot.set_pose_ftc(-50, -50, case[1])
+		# Use the real cameras: main works out "away from the player" from the one in use.
+		while main._cam_index != (1 if case[0].z < -0.5 else 0):
+			main._next_camera()
+		await steps(4)
+		check("camera gives the expected view direction", teleop.view_forward.distance_to(case[0]) < 0.01, str(teleop.view_forward))
+		robot.wheel_powers = teleop.compute_powers(1, 0, 0)
+		await steps(90)
+		var moved: Vector3 = robot.global_position - Vector3(-50 * IN, 0, 50 * IN)
+		var along: float = moved.dot(case[0])
+		var across: float = (moved - case[0] * along).length()
+		check("W drives away from the player: %s" % case[2], along > 0.5 and across < 0.02 and absf(robot.get_pose_ftc().z - wrapf(case[1], -180.0, 180.0)) < 0.5, "%.2f m forward, %.3f m sideways" % [along, across])
+	while main._cam_index != 0:
+		main._next_camera()
+	robot.reset_pose()
+	robot.set_pose_ftc(-50, 20, 90)
+	await steps(4)
+	robot.wheel_powers = teleop.compute_powers(0, 1, 0)
+	await steps(90)
+	check("D strafes to the player's right", (robot.global_position - Vector3(-50 * IN, 0, -20 * IN)).dot(Vector3(0, 0, 1)) > 0.4)
 	teleop.field_centric = false
 
 	# Match clock.

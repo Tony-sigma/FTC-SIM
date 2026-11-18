@@ -20,8 +20,7 @@ Driver practice and (later) real-OpMode testing for our FTC robot.
 | Turret auto-aim on / off | Right-stick click | T |
 | Turret / hood by hand (switches auto-aim off) | D-pad | Z / X and ↑ / ↓ |
 | Front lever / back lever (toggle) | A / B | 1 / 2 |
-| Robot-centric ↔ field-centric | Y | F |
-| Reset field-centric "forward" | X | H |
+| Player-view ↔ robot-centric driving | Y | F |
 | Start a 2:00 driver-controlled match | Start | Enter |
 | Start a full match (30 s auto → transition → 2:00) | – | M |
 | Reset robot, field and clock | Back | R |
@@ -29,6 +28,10 @@ Driver practice and (later) real-OpMode testing for our FTC robot.
 | Next camera | – | C |
 | Show the collision box | – | V |
 | Reload `robot_config.json` | – | F5 |
+
+Driving is from the player's point of view by default: W (or stick forward) always moves the robot
+away from you on the screen, whichever way the robot faces, and it follows the camera you are
+using. Press F (or Y) for robot-centric, where W drives toward the robot's own front.
 
 The flywheel spins all the time. Intake pulls pollen in with a gate shut at the neck; shoot opens
 the gate and feeds them to the flywheel. (The gate is an assumption about the real robot: see

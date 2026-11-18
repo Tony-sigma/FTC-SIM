@@ -50,6 +50,8 @@
     "_note": "Two motors on one flywheel. A ball waiting at the neck is launched when the gate is open, its intake/feeder motor runs AND the flywheel is spinning.",
     "motor_names": ["shooterLeft", "shooterRight"],
     "hood_servo_name": "hoodServo",
+    "_gate_note": "ASSUMPTION: something holds pollen at the neck until you want to shoot (a gate/stopper servo). Without one, running a feeder with the flywheel spinning fires straight away. Position > 0.5 = open.",
+    "gate_servo_name": "gateServo",
     "_compression_note": "For reference only (the sim does not model compression). The team gave shooter 1.69 / 3.69 and intake 0.39 / 2.39 for pollen / nectar; the CAD gap between the two shooter wheels is 54.3 mm against a 71.1 mm pollen, i.e. 16.8 mm, so those figures are centimetres.",
     "_speed_note": "Motors are the goBILDA 312 rpm Yellow Jacket with the gearbox removed: 6000 rpm free speed, 1:1 to the 4 in flywheel; the 3 in top wheel is geared 2.25x faster. Surface speeds at full power: 31.9 m/s (flywheel) and 53.9 m/s (top wheel), average 42.9 m/s. exit_speed_fraction = ball speed / flywheel surface speed = 1.34 (the average of the two wheels) x 0.6 efficiency. The 0.6 is a PLACEHOLDER for slip and compression losses: measure a real shot and adjust it. That gives about 25.5 m/s at full power, so real shots use roughly a fifth of full power.",
     "flywheel_max_rpm": 6000.0,
@@ -166,6 +168,6 @@
     "stick_deadzone": 0.05,
     "slow_mode_scale": 0.4,
     "turn_scale": 1.0,
-    "field_centric_default": false
+    "field_centric_default": true
   }
 }
