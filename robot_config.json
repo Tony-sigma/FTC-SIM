@@ -50,7 +50,8 @@
     "_note": "Two motors on one flywheel. A ball waiting at the neck is launched when the gate is open, its intake/feeder motor runs AND the flywheel is spinning.",
     "motor_names": ["shooterLeft", "shooterRight"],
     "hood_servo_name": "hoodServo",
-    "_compression_note": "Measured by the team, for reference only (the sim does not model compression): shooter squeezes pollen 1.69 mm and nectar 3.69 mm; intake squeezes pollen about 0.39 mm and nectar about 2.39 mm.",
+    "_compression_note": "For reference only (the sim does not model compression). The team gave shooter 1.69 / 3.69 and intake 0.39 / 2.39 for pollen / nectar; the CAD gap between the two shooter wheels is 54.3 mm against a 71.1 mm pollen, i.e. 16.8 mm, so those figures are centimetres.",
+    "_speed_note": "PLACEHOLDER SPEED. flywheel_max_rpm x exit_speed_fraction below gives 5.6 m/s at the ball. The CAD shows 312 rpm motors, geared so the top wheel turns 2.25x the flywheel; that works out to only about 2.2 m/s at the ball, far short of the 5.5 to 6.5 m/s the hive needs.",
     "_gate_note": "ASSUMPTION: something holds pollen at the neck until you want to shoot (a gate/stopper servo). Without one, running a feeder with the flywheel spinning fires straight away. Position > 0.5 = open.",
     "gate_servo_name": "gateServo",
     "flywheel_max_rpm": 3000.0,
@@ -60,11 +61,12 @@
     "speed_drop_per_shot": 0.25,
     "min_speed_fraction_to_shoot": 0.2,
     "shot_interval_s": 0.25,
-    "_hood_note": "The sim measures the shot angle UP FROM THE FLOOR (0 = flat, 90 = straight up). The team measures from vertical (0 = straight up, 90 = flat forward): their hood goes from P0 = 13.726 to PF = 34.526, which is 76.274 down to 55.474 here. Servo 0 = flattest (PF), servo 1 = steepest (P0).",
-    "hood_min_deg": 55.474,
-    "hood_max_deg": 76.274,
+    "_hood_note": "MEASURED from cad/shooter_min.glb and cad/shooter_max.glb (2026-11). The shooter has two wheels: a 4 in flywheel and a 3 in top wheel carried by the hood, which swings around the flywheel axle. Pollen leaves through the gap between them, at right angles to the line joining the two wheel centres. That line is 22.7 deg above horizontal with the hood at its start and 43.8 deg at its end, so the shot leaves at 67.3 deg (start) down to 46.2 deg (end) above the floor. Assumes the shooter sits on the robot at the same tilt as in cad/Robot.glb; uncertainty about 2 deg. Servo 0 = flattest (hood at its end), servo 1 = steepest (hood at its start).",
+    "hood_min_deg": 46.2,
+    "hood_max_deg": 67.3,
     "hood_speed_deg_per_s": 90.0,
-    "exit_offset_m": [0.1, 0.5, 0.0]
+    "_exit_note": "Where pollen leaves, in the turret frame: about 0.39 m above the floor, from the CAD.",
+    "exit_offset_m": [0.015, 0.39, 0.0]
   },
 
   "match": {
