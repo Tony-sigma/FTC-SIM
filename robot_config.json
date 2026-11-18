@@ -50,6 +50,7 @@
     "_note": "Two motors on one flywheel. A ball waiting at the neck is launched when the gate is open, its intake/feeder motor runs AND the flywheel is spinning.",
     "motor_names": ["shooterLeft", "shooterRight"],
     "hood_servo_name": "hoodServo",
+    "_compression_note": "Measured by the team, for reference only (the sim does not model compression): shooter squeezes pollen 1.69 mm and nectar 3.69 mm; intake squeezes pollen about 0.39 mm and nectar about 2.39 mm.",
     "_gate_note": "ASSUMPTION: something holds pollen at the neck until you want to shoot (a gate/stopper servo). Without one, running a feeder with the flywheel spinning fires straight away. Position > 0.5 = open.",
     "gate_servo_name": "gateServo",
     "flywheel_max_rpm": 3000.0,
@@ -73,8 +74,9 @@
 
   "robot": {
     "_size_note": "Measured from the CAD by tools/process_cad.mjs (see models/measurements.json). This box is what collides with walls.",
+    "_team_numbers": "From the team, 2026-11: frame width 438.214 mm, chassis length 334.075 mm WITHOUT the intakes. The collision box keeps the CAD length (17.27 in) because it must include the intakes.",
     "length_in": 17.27,
-    "width_in": 17.65,
+    "width_in": 17.252,
     "height_in": 20.22,
     "size_limit_in": 18.0,
     "_start_note": "PLACEHOLDER start pose: near the red alliance wall, facing across the field.",
@@ -91,7 +93,8 @@
     "motor_rpm": 312.0,
     "ticks_per_rev": 537.7,
     "external_gear_ratio": 1.0,
-    "track_width_in": 15.388,
+    "_track_note": "Track width from the team (335.169 mm), 2026-11. The CAD in cad/Robot.glb measures 390.9 mm between wheel centres; the team's number wins until a new CAD arrives.",
+    "track_width_in": 13.196,
     "wheelbase_in": 7.842,
     "loaded_speed_fraction": 0.85,
     "strafe_efficiency": 0.85,
@@ -123,10 +126,10 @@
   },
 
   "limelight": {
-    "_note": "Limelight 4 on the turret, looking along the shooter. It does not process images: the sim works out which AprilTags are in view from where the robot and turret are. position_m is in the turret's frame (+x = shooting direction, +y up), measured from the CAD. PLACEHOLDERS: mount_pitch_deg (how far the camera is tilted up), the field of view (82 x 56.2 deg is my figure for the Limelight 4), max range and viewing angle, and tag_size_in.",
+    "_note": "Limelight 4 on the turret, looking along the shooter. It does not process images: the sim works out which AprilTags are in view from where the robot and turret are. position_m is in the turret's frame (+x = shooting direction, +y up), measured from the CAD. mount_pitch_deg (camera tilted up 45 deg) is from the team. PLACEHOLDERS: the field of view (82 x 56.2 deg is my figure for the Limelight 4), max range and viewing angle, and tag_size_in.",
     "name": "limelight",
     "position_m": [0.164, 0.362, 0.0],
-    "mount_pitch_deg": 25.0,
+    "mount_pitch_deg": 45.0,
     "fov_horizontal_deg": 82.0,
     "fov_vertical_deg": 56.2,
     "max_range_in": 144.0,
