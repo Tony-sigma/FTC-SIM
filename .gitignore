@@ -2,3 +2,4 @@
 export/
 .DS_Store
 node_modules/
+cad/Robot.glb

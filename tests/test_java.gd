@@ -99,7 +99,7 @@ func _run() -> void:
 	await steps(120)
 	key(KEY_1, false)
 	key(KEY_LEFT, false)
-	check("A button deploys a lever, D-pad turns the turret", robot.lever_front_deg > 80.0 and robot.turret_deg > 5.0, "lever %.0f, turret %.1f" % [robot.lever_front_deg, robot.turret_deg])
+	check("A button deploys a lever, D-pad turns the turret", robot.lever_front_deg > 80.0 and robot.turret_from_home_deg() > 5.0, "lever %.0f, turret %.1f" % [robot.lever_front_deg, robot.turret_from_home_deg()])
 	# Limelight: the OpMode's own auto-aim finds our hive's tag and centres the turret on it.
 	key(KEY_T, true)
 	await steps(20)

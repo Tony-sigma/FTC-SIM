@@ -162,7 +162,7 @@ func _process(_dt: float) -> void:
 		"hood_deg": robot.hood_deg,
 		"score": "red %d  (tips %d)     blue %d  (tips %d)" % [field.score["red"], field.tips["red"], field.score["blue"], field.tips["blue"]],
 		"hive": "red up %d low %d   blue up %d low %d" % [field.cell_count("red", true), field.cell_count("red", false), field.cell_count("blue", true), field.cell_count("blue", false)],
-		"turret_deg": robot.turret_deg,
+		"turret_deg": robot.turret_from_home_deg(),
 		"turret_half_range": robot.turret_range_deg() / 2.0,
 		"turret_continuous": robot.turret_continuous,
 		"auto_aim": teleop.auto_aim and not bridge.connected,

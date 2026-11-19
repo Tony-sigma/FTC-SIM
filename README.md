@@ -102,19 +102,23 @@ acceleration limits, match times. Edit it, save, press F5 in the running sim. Pl
 values are listed at the top of that file.
 
 ## The robot model (CAD)
-The Onshape export lives in `cad/Robot.glb` (93 MB, far too heavy to animate directly).
+The Onshape export lives in `cad/Robot.zip` (the `.glb` inside is about 150 MB, over GitHub's
+100 MB file limit, and far too heavy to animate directly). Unzip it to `cad/Robot.glb` before
+running the tool; that file is ignored by git.
 `tools/process_cad.mjs` turns it into four light pieces in `models/` (chassis, turret, front
 lever, back lever; about 12 MB together), each with its origin on its pivot, and writes the
 sizes and pivot positions it measured to `models/measurements.json`.
 
-**When the CAD changes:** export the top-level assembly from Onshape as glTF (`.glb`), replace
-`cad/Robot.glb`, then:
+**When the CAD changes:** export the top-level assembly from Onshape as glTF (`.glb`), save it as
+`cad/Robot.glb` (and zip it to `cad/Robot.zip` to commit it), then:
 ```bash
 cd tools
 npm install
 npm run cad
 ```
-Copy any changed numbers from `models/measurements.json` into `robot_config.json`. The tool finds
+Copy any changed numbers from `models/measurements.json` into `robot_config.json`. Besides sizes and
+pivots it reports how far the levers are folded out in the export, which way the shooter points,
+and the shot angle for the hood position the CAD was exported in. The tool finds
 things by part name (`Mecanum Wheel`, `Spur gear (70 teeth)`, the `Patita` / `Torreta` / `Chasis`
 groups), so keep those names in Onshape.
 

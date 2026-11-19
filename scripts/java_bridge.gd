@@ -160,9 +160,9 @@ func _apply(msg: Dictionary) -> void:
 	for name in servos:
 		var pos := clampf(float(servos[name]), 0.0, 1.0)
 		if name == _turret:
-			# 0.5 = straight ahead of the shooter's rest position; the full servo travel covers the turret's range.
+			# 0.5 = the turret's home direction (straight ahead); the full servo travel is one full turn.
 			robot.turret_servo = pos
-			robot.turret_goal_deg = (pos - 0.5) * 360.0
+			robot.turret_goal_deg = wrapf(robot.turret_home_deg + (pos - 0.5) * 360.0, -180.0, 180.0)
 		elif name == _hood:
 			robot.hood_servo = pos
 		elif name == _gate:

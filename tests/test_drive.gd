@@ -81,17 +81,19 @@ func _run() -> void:
 	robot.wheel_powers = [0.0, 0.0, 0.0, 0.0]
 	await steps(5)
 	check("CAD model loaded", robot.has_cad_model)
-	check("turret starts centred, levers stowed", absf(robot.turret_deg) < 0.01 and robot.lever_front_deg < 0.01)
-	robot.turret_goal_deg = 150.0
+	check("turret starts at home (straight ahead), levers stowed", absf(robot.turret_from_home_deg()) < 0.01 and robot.lever_front_deg < 0.01)
+	var shooter_fwd: Vector3 = (robot.global_transform.basis * Basis(Vector3.UP, deg_to_rad(robot.turret_deg))).x
+	check("at home the shooter points to the robot's front", shooter_fwd.distance_to(-robot.global_transform.basis.z) < 0.01, str(shooter_fwd))
+	robot.turret_goal_deg = -30.0
 	robot.lever_front_servo = 1.0
 	await steps(12)
-	check("mechanisms do not snap instantly", robot.turret_deg > 1.0 and robot.turret_deg < 20.0 and robot.lever_front_deg > 5.0 and robot.lever_front_deg < 60.0,
+	check("mechanisms do not snap instantly", robot.turret_deg < 89.0 and robot.turret_deg > 70.0 and robot.lever_front_deg > 5.0 and robot.lever_front_deg < 60.0,
 		"turret %.1f, lever %.1f after 0.1 s" % [robot.turret_deg, robot.lever_front_deg])
 	await steps(360)
-	check("turret turns past the old servo limit", absf(robot.turret_deg - 150.0) < 0.01, "%.2f deg" % robot.turret_deg)
-	robot.turret_goal_deg = -150.0
+	check("turret turns far past the old servo limit", absf(robot.turret_deg + 30.0) < 0.01, "%.2f deg" % robot.turret_deg)
+	robot.turret_goal_deg = 170.0
 	await steps(60)
-	check("turret takes the short way round (through 180)", absf(robot.turret_deg) > 150.0, "%.1f deg" % robot.turret_deg)
+	check("turret takes the short way round (through 180)", robot.turret_deg < -40.0, "%.1f deg" % robot.turret_deg)
 	check("front lever deploys to 90, back stays stowed", absf(robot.lever_front_deg - 90.0) < 0.01 and robot.lever_back_deg < 0.01)
 	# Auto-aim: the shooter side of the turret faces the tag under the raised cell, wherever the robot is.
 	for pose in [Vector3(-50, -50, 90), Vector3(40, 50, -30), Vector3(-45, 45, 200)]:
@@ -139,7 +141,7 @@ func _run() -> void:
 	var shot = get_nodes_in_group("pollen")[0]
 	await steps(360)
 	var flew: Vector3 = shot.global_position - start
-	check("shot flies out the robot's right side and lands on the floor", flew.x > 0.8 and absf(flew.z) < 0.5 and shot.global_position.y < 0.1, "landed %.2f m to the right" % flew.x)
+	check("shot flies out of the robot's front and lands on the floor", flew.z < -0.8 and absf(flew.x) < 0.5 and shot.global_position.y < 0.1, "landed %.2f m ahead" % -flew.z)
 	# Capacity limit.
 	pollen.clear()
 	robot.reset_pose()

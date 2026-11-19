@@ -90,6 +90,10 @@ var _lever_stowed := 0.0
 var _lever_deployed := 90.0
 var _lever_speed := 240.0
 var _lever_signs := [-1.0, 1.0]
+var _lever_cad_deg := 0.0
+var _lever_len := 0.1835
+var _lever_pivots: Array = [Vector3(0, 0.156, -0.162), Vector3(0, 0.156, 0.162)]
+var turret_home_deg := 90.0
 
 var _visual: Node3D
 var _shape: CollisionShape3D
@@ -126,6 +130,10 @@ func apply_config() -> void:
 	_lever_deployed = Config.num("levers.deployed_deg", 90.0)
 	_lever_speed = Config.num("levers.speed_deg_per_s", 240.0)
 	_lever_signs = [Config.num("levers.front_deploy_sign", -1.0), Config.num("levers.back_deploy_sign", 1.0)]
+	_lever_cad_deg = Config.num("levers.cad_pose_deg", 0.0)
+	_lever_len = Config.num("levers.length_m", 0.1835)
+	_lever_pivots = [_vec("levers.front_pivot_m", Vector3(0, 0.156, -0.162)), _vec("levers.back_pivot_m", Vector3(0, 0.156, 0.162))]
+	turret_home_deg = Config.num("turret.home_deg", 90.0)
 	_odo_left_off = Config.inches("odometry.forward_pod_left_offset_in", -5.159)
 	_odo_fwd_off = Config.inches("odometry.strafe_pod_forward_offset_in", -3.497)
 	_feeder_cap = int(Config.num("intakes.feeder_capacity", 3))
@@ -153,8 +161,8 @@ func reset_pose() -> void:
 		wheel_powers[i] = 0.0
 		wheel_angles[i] = 0.0
 	turret_servo = 0.5
-	turret_goal_deg = 0.0
-	turret_deg = 0.0
+	turret_goal_deg = turret_home_deg
+	turret_deg = turret_home_deg
 	lever_front_servo = 0.0
 	lever_back_servo = 0.0
 	intake_front_power = 0.0
@@ -211,15 +219,16 @@ func _update_mechanisms(dt: float) -> void:
 		var diff := wrapf(goal - turret_deg, -180.0, 180.0)
 		turret_deg = wrapf(turret_deg + clampf(diff, -_turret_speed * dt, _turret_speed * dt), -180.0, 180.0)
 	else:
-		var turret_goal := (clampf(turret_servo, 0.0, 1.0) - 0.5) * _turret_range_deg
+		var turret_goal := turret_home_deg + (clampf(turret_servo, 0.0, 1.0) - 0.5) * _turret_range_deg
 		turret_deg = move_toward(turret_deg, turret_goal, _turret_speed * dt)
 	lever_front_deg = move_toward(lever_front_deg, lerpf(_lever_stowed, _lever_deployed, clampf(lever_front_servo, 0.0, 1.0)), _lever_speed * dt)
 	lever_back_deg = move_toward(lever_back_deg, lerpf(_lever_stowed, _lever_deployed, clampf(lever_back_servo, 0.0, 1.0)), _lever_speed * dt)
 	if _turret_node:
 		_turret_node.rotation.y = deg_to_rad(turret_deg)
 	if _lever_nodes.size() == 2:
-		_lever_nodes[0].rotation.x = deg_to_rad(lever_front_deg) * _lever_signs[0]
-		_lever_nodes[1].rotation.x = deg_to_rad(lever_back_deg) * _lever_signs[1]
+		# The models are exported folded out by cad_pose_deg, so turn them back by that much.
+		_lever_nodes[0].rotation.x = deg_to_rad(lever_front_deg - _lever_cad_deg) * _lever_signs[0]
+		_lever_nodes[1].rotation.x = deg_to_rad(lever_back_deg - _lever_cad_deg) * _lever_signs[1]
 
 ## Load the robot with its starting pollen, split between the two feeders.
 func preload_pollen() -> void:
@@ -234,12 +243,19 @@ func preload_pollen() -> void:
 func deployed_lever_bars() -> Array:
 	var out: Array = []
 	var degs := [lever_front_deg, lever_back_deg]
-	for i in _lever_nodes.size():
+	for i in 2:
 		if degs[i] < 60.0:
 			continue
-		var t: Transform3D = _lever_nodes[i].global_transform
-		out.append([t * Vector3(-width / 2.0, 0.19, 0), t * Vector3(width / 2.0, 0.19, 0)])
+		var a := deg_to_rad(degs[i])
+		var p: Vector3 = _lever_pivots[i]
+		# Upright at 0 deg, swinging outward (front lever towards -z, back lever towards +z).
+		var tip := Vector3(0, p.y + _lever_len * cos(a), p.z + signf(p.z) * _lever_len * sin(a))
+		out.append([global_transform * (tip + Vector3(-width / 2.0, 0, 0)), global_transform * (tip + Vector3(width / 2.0, 0, 0))])
 	return out
+
+## Turret angle as the driver thinks of it: 0 = the shooter's home direction (straight ahead).
+func turret_from_home_deg() -> float:
+	return wrapf(turret_deg - turret_home_deg, -180.0, 180.0)
 
 func held_count(feeder: int) -> int:
 	return feeders[feeder].size()

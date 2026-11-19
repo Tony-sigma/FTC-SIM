@@ -5,18 +5,35 @@
   "size_in": {
     "length": 17.27,
     "width": 17.65,
-    "height": 20.22
+    "height": 17.49
+  },
+  "size_note": "Without the levers, i.e. with them folded up.",
+  "size_as_exported_in": {
+    "length": 25.62,
+    "width": 17.65,
+    "height": 17.49
+  },
+  "lever_angle_as_exported_deg": {
+    "front": 138.1,
+    "back": 138.1
+  },
+  "turret_home_deg": 86.6,
+  "turret_home_note": "Direction the shooter points in this export, counter-clockwise from the robot's right. 90 = straight ahead. The turret model itself is turned so its +x is the shooting direction.",
+  "shooter": {
+    "flywheel_centre_height_m": 0.351,
+    "wheel_centre_line_deg": 22.7,
+    "shot_angle_deg": 67.3
   },
   "bounds_m": {
     "min": [
       -0.2241,
       -0.0073,
-      -0.2194
+      -0.3254
     ],
     "max": [
       0.2241,
-      0.5136,
-      0.2194
+      0.4442,
+      0.3254
     ]
   },
   "pivots_m": {
@@ -32,25 +49,25 @@
     ],
     "lever_front": [
       0,
-      0.1559,
+      0.156,
       -0.162
     ],
     "lever_back": [
       0,
-      0.1559,
+      0.156,
       0.162
     ]
   },
   "odometry_pods": [
     {
       "measures": "forward",
-      "forward_offset_in": -3.49,
+      "forward_offset_in": -3.488,
       "left_offset_in": -5.159
     },
     {
       "measures": "strafe",
       "forward_offset_in": -3.497,
-      "left_offset_in": 5.152
+      "left_offset_in": 5.15
     }
   ]
 }
