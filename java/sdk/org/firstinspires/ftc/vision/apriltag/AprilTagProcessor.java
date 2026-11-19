@@ -6,8 +6,8 @@ import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.VisionProcessor;
 
 /**
- * Simulator stand-in for the FTC SDK AprilTagProcessor. It reports the tags the simulated camera can
- * see; nothing comes back until the processor is part of a built VisionPortal that is streaming.
+ * Simulator stand-in for the FTC SDK AprilTagProcessor (SDK 12.0 style). It reports the AprilTag
+ * clusters the simulated camera can see, as AprilTagClusterDetection objects; nothing comes back until the processor is part of a built VisionPortal that is streaming.
  */
 public class AprilTagProcessor implements VisionProcessor {
     public enum TagFamily { TAG_36h11, TAG_25h9, TAG_16h5, TAG_standard41h12 }
@@ -46,7 +46,7 @@ public class AprilTagProcessor implements VisionProcessor {
     public void setPoseSolver(PoseSolver solver) { }
     public int getPerTagAvgPoseSolveTime() { return 5; }
 
-    /** Every tag in view right now, biggest first. Empty when none is visible. */
+    /** Every cluster in view right now, biggest first. Empty when none is visible. */
     public ArrayList<AprilTagDetection> getDetections() {
         ArrayList<AprilTagDetection> out = new ArrayList<>();
         if (portal == null || link == null || !portal.internalIsLive(this)) return out;
@@ -55,15 +55,17 @@ public class AprilTagProcessor implements VisionProcessor {
         Pose3D robotPose = new Pose3D(
             new Position(distanceUnit, distanceUnit.fromMeters(rp[0]), distanceUnit.fromMeters(rp[1]), 0.0, now),
             new YawPitchRollAngles(AngleUnit.DEGREES, rp[2], 0, 0, now));
-        for (double[] t : link.cameraTags()) {
-            // t = {id, tx, ty, area, x, y, z} with x right, y out of the lens, z up, in inches
-            double x = distanceUnit.fromInches(t[4]), y = distanceUnit.fromInches(t[5]), z = distanceUnit.fromInches(t[6]);
+        java.util.List<String> names = link.cameraClusterNames();
+        java.util.List<double[]> rows = link.cameraTags();
+        for (int i = 0; i < rows.size() && i < names.size(); i++) {
+            // row = {percent found, x, y, z, roll} with x right, y out of the lens, z up, in inches
+            double[] t = rows.get(i);
+            double x = distanceUnit.fromInches(t[1]), y = distanceUnit.fromInches(t[2]), z = distanceUnit.fromInches(t[3]);
             double range = Math.hypot(x, y);
             double bearing = Math.atan2(-x, y), elevation = Math.atan2(z, y);
-            AprilTagPoseFtc pose = new AprilTagPoseFtc(x, y, z, 0, 0, 0, range,
+            AprilTagPoseFtc pose = new AprilTagPoseFtc(x, y, z, 0, 0, angleUnit.fromDegrees(t[4]), range,
                 angleUnit.fromRadians(bearing), angleUnit.fromRadians(elevation));
-            int id = (int) t[0];
-            out.add(new AprilTagDetection(id, new AprilTagMetadata(id, "Tag " + id, 4.0, DistanceUnit.INCH), pose, robotPose, now));
+            out.add(new AprilTagClusterDetection(t[0], new AprilTagMetadata(-1, names.get(i), 3.27, DistanceUnit.INCH), pose, robotPose, now));
         }
         return out;
     }

@@ -99,20 +99,21 @@ func _run() -> void:
 	await steps(120)
 	key(KEY_1, false)
 	key(KEY_LEFT, false)
-	check("A button deploys a lever, D-pad turns the turret", robot.lever_front_deg > 80.0 and robot.turret_from_home_deg() > 5.0, "lever %.0f, turret %.1f" % [robot.lever_front_deg, robot.turret_from_home_deg()])
+	check("A button deploys a lever, D-pad turns the turret", robot.lever_front_deg > 130.0 and robot.turret_from_home_deg() > 5.0, "lever %.0f, turret %.1f" % [robot.lever_front_deg, robot.turret_from_home_deg()])
 	# Camera: the OpMode's own auto-aim finds our hive's tag and centres the turret on it.
 	key(KEY_T, true)
 	await steps(20)
 	key(KEY_T, false)
-	var ll = main.tag_camera
+	var cam = main.tag_camera
 	var locked := func():
-		for t in ll.tags:
-			if (t["id"] == 1 or t["id"] == 2) and absf(t["tx"]) < 1.5:
+		for t in cam.tags:
+			if str(t["name"]).begins_with("RED") and absf(t["roll"]) < 90.0 and absf(t["tx"]) < 1.5:
 				return true
 		return false
 	ok = await wait_for(locked, 20.0)
-	check("Java auto-aim centres the turret on our hive's AprilTag", ok, ll.summary())
-	check("camera data shows up in telemetry", bridge.telemetry.contains("Auto-aim : ON") and bridge.telemetry.contains("Camera : tag"), bridge.telemetry.strip_edges().replace("\n", " | "))
+	check("Java auto-aim centres the turret on our hive's raised cell", ok, cam.summary())
+	check("the cell it locked onto is the raised one", main.field.hive_of("red")["up_side"] == "bottom" and cam.tags.size() > 0 and str(cam.tags[0]["name"]) == "RED AUDIENCE", cam.summary())
+	check("camera data shows up in telemetry", bridge.telemetry.contains("Auto-aim : ON") and bridge.telemetry.contains("Camera : RED AUDIENCE"), bridge.telemetry.strip_edges().replace("\n", " | "))
 	main.reset_all()
 	ok = await wait_for(func(): return not bridge.connected and not runner.is_running(), 5.0)
 	check("reset stops the OpMode and hands back to the built-in TeleOp", ok)

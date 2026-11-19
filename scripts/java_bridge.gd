@@ -189,13 +189,14 @@ func _state(dt: float) -> Dictionary:
 	if _odo.size() >= 2:
 		motors[_odo[0]] = _encoder(_odo[0], robot.odo_forward * odo_tpm, dt)
 		motors[_odo[1]] = _encoder(_odo[1], robot.odo_strafe * odo_tpm, dt)
-	# AprilTags the main camera sees: [id, tx, ty, area, x, y, z] with x/y/z in inches in the camera's frame.
+	# AprilTag clusters the main camera sees: [name, percent found, x, y, z, roll]; x/y/z in inches in the
+	# camera's frame (x right, y out of the lens, z up), pointing at the centre of the cell's opening.
 	var tags: Array = []
 	var cam_pose: Array = []
 	if tag_camera != null:
 		for t in tag_camera.tags:
 			var c: Vector3 = t["cam_xyz"] / Config.IN
-			tags.append([t["id"], snappedf(t["tx"], 0.01), snappedf(t["ty"], 0.01), snappedf(t["ta"], 0.0001), snappedf(c.x, 0.01), snappedf(c.y, 0.01), snappedf(c.z, 0.01)])
+			tags.append([t["name"], snappedf(t["percent"], 0.1), snappedf(c.x, 0.01), snappedf(c.y, 0.01), snappedf(c.z, 0.01), snappedf(t["roll"], 0.1)])
 		for v in tag_camera.botpose:
 			cam_pose.append(snappedf(v, 0.0001))
 	return {

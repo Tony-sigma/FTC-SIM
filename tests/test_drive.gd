@@ -81,20 +81,20 @@ func _run() -> void:
 	robot.wheel_powers = [0.0, 0.0, 0.0, 0.0]
 	await steps(5)
 	check("CAD model loaded", robot.has_cad_model)
-	check("turret starts at home (straight ahead), levers stowed", absf(robot.turret_from_home_deg()) < 0.01 and robot.lever_front_deg < 0.01)
+	check("turret starts at home (straight ahead), levers at their default angle", absf(robot.turret_from_home_deg()) < 0.01 and absf(robot.lever_front_deg - 100.0) < 0.01)
 	var shooter_fwd: Vector3 = (robot.global_transform.basis * Basis(Vector3.UP, deg_to_rad(robot.turret_deg))).x
 	check("at home the shooter points to the robot's front", shooter_fwd.distance_to(-robot.global_transform.basis.z) < 0.01, str(shooter_fwd))
 	robot.turret_goal_deg = -30.0
 	robot.lever_front_servo = 1.0
 	await steps(12)
-	check("mechanisms do not snap instantly", robot.turret_deg < 89.0 and robot.turret_deg > 70.0 and robot.lever_front_deg > 5.0 and robot.lever_front_deg < 60.0,
+	check("mechanisms do not snap instantly", robot.turret_deg < 89.0 and robot.turret_deg > 70.0 and robot.lever_front_deg > 105.0 and robot.lever_front_deg < 137.0,
 		"turret %.1f, lever %.1f after 0.1 s" % [robot.turret_deg, robot.lever_front_deg])
 	await steps(360)
 	check("turret turns far past the old servo limit", absf(robot.turret_deg + 30.0) < 0.01, "%.2f deg" % robot.turret_deg)
 	robot.turret_goal_deg = 170.0
 	await steps(60)
 	check("turret takes the short way round (through 180)", robot.turret_deg < -40.0, "%.1f deg" % robot.turret_deg)
-	check("front lever deploys to 90, back stays stowed", absf(robot.lever_front_deg - 90.0) < 0.01 and robot.lever_back_deg < 0.01)
+	check("front lever goes to 138, back stays at its default", absf(robot.lever_front_deg - 138.0) < 0.01 and absf(robot.lever_back_deg - 100.0) < 0.01)
 	# Auto-aim: the shooter side of the turret faces the tag under the raised cell, wherever the robot is.
 	for pose in [Vector3(-50, -50, 90), Vector3(40, 50, -30), Vector3(-45, 45, 200)]:
 		robot.set_pose_ftc(pose.x, pose.y, pose.z)
@@ -205,30 +205,30 @@ func _run() -> void:
 	check("from behind the cell's mouth the shot is reported as impossible", not behind["ok"] and behind["reason"] == "WRONG SIDE OF HIVE", str(behind["reason"]))
 	robot.aim_point = null
 	robot.shooter_power = 0.0
-	# Camera: sees the tag it is pointed at, with tx near zero; sees nothing when turned away.
+	# Camera: sees the cluster under the cell the turret points at; nothing when turned away.
 	robot.reset_pose()
 	robot.set_pose_ftc(-58, -48, 0)
-	var our_tag: Vector3 = main.field.aim_point("red")
-	robot.aim_point = our_tag
+	robot.aim_point = main.field.aim_point("red")
 	await steps(480)
 	var seen: Array = main.tag_camera.tags
-	var centred := false
-	for t in seen:
-		if absf(t["tx"]) < 0.5:
-			centred = true
-	check("Camera sees the tag the turret points at, centred", centred, main.tag_camera.summary())
-	check("Camera gives the robot's field position", main.tag_camera.botpose.size() == 3 and absf(main.tag_camera.botpose[0] - (-58 * IN)) < 0.01, str(main.tag_camera.botpose))
+	var names: Array = seen.map(func(t): return t["name"])
+	check("camera sees the raised red cell's cluster, the right way up", names.has("RED AUDIENCE") and absf(seen[names.find("RED AUDIENCE")]["roll"]) < 90.0, main.tag_camera.summary())
+	var aud: Dictionary = seen[names.find("RED AUDIENCE")] if names.has("RED AUDIENCE") else {}
+	check("its pose points at the cell's opening", not aud.is_empty() and absf(aud["tx"]) < 3.0 and absf(aud["dist_m"] - (main.field.mouth_point("red") - main.tag_camera.camera_frame()[0]).length()) < 0.01, main.tag_camera.summary())
+	if names.has("RED SCORING"):
+		check("the lowered cell's cluster shows as upside down", absf(seen[names.find("RED SCORING")]["roll"]) > 90.0, main.tag_camera.summary())
+	check("camera gives the robot's field position", main.tag_camera.botpose.size() == 3 and absf(main.tag_camera.botpose[0] - (-58 * IN)) < 0.01, str(main.tag_camera.botpose))
 	robot.aim_point = null
 	robot.turret_goal_deg = wrapf(robot.turret_deg + 180.0, -180.0, 180.0)
 	await steps(480)
-	check("Camera sees nothing when the turret faces away", main.tag_camera.tags.is_empty() and main.tag_camera.botpose.is_empty(), main.tag_camera.summary())
+	check("camera sees nothing when the turret faces away", main.tag_camera.tags.is_empty() and main.tag_camera.botpose.is_empty(), main.tag_camera.summary())
 	# A deployed lever against a flower releases its pollen.
 	main.field.reset_elements(pollen)
 	var before: int = pollen.ball_count()
 	var fl = main.field.flowers[2]  # the flower on the left (red) wall
-	robot.set_pose_ftc(fl["pos"].x / IN + (robot.length / 2.0 + 0.17) / IN, -fl["pos"].z / IN, 0)
+	robot.set_pose_ftc(fl["pos"].x / IN + (robot.length / 2.0 + 0.12) / IN, -fl["pos"].z / IN, 0)
 	await steps(120)
-	check("flower keeps its pollen while the lever is stowed", fl["count"] == 4 and pollen.ball_count() == before)
+	check("flower keeps its pollen while the lever is at its default", fl["count"] == 4 and pollen.ball_count() == before)
 	robot.lever_back_servo = 1.0
 	await steps(360)
 	check("deployed lever empties the flower", fl["count"] == 0 and pollen.ball_count() == before + 4, "flower %d, +%d balls" % [fl["count"], pollen.ball_count() - before])

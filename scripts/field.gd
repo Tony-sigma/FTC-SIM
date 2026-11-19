@@ -200,17 +200,29 @@ func cell_count(alliance: String, up: bool) -> int:
 			return h["areas"][side].get_overlapping_bodies().size()
 	return 0
 
-## Every AprilTag on the field right now: [{ id, pos, normal }]. Each hive carries one under each cell;
-## they move and tilt with the hive.
-func april_tags() -> Array:
-	var ids = Config.value("field.april_tags", {})
+## Every AprilTag cluster on the field right now. Each hive cell has four tags on its underside:
+## [{ key, name, tags: [{ id, pos, normal }], aim: Vector3, up: Vector3 }]. `aim` is the centre of the
+## cell's opening (where the SDK says the cluster "is"); `up` is the sticker's top edge direction.
+func april_tag_clusters() -> Array:
+	var defs = Config.value("field.april_tag_clusters", {})
+	var offsets = Config.value("field.april_tag_offsets_in", [-6.0, -2.26, 3.24, 6.99])
 	var out: Array = []
+	if not defs is Dictionary:
+		return out
 	for h in hives:
 		var t: Transform3D = h["body"].global_transform
 		for side in ["bottom", "top"]:
 			var key := "%s_%s" % [h["alliance"], "audience" if side == "bottom" else "scoring"]
-			var z := 14.0 * Config.IN * (1.0 if side == "bottom" else -1.0)
-			out.append({"id": int(ids.get(key, 0)) if ids is Dictionary else 0, "pos": t * Vector3(0, -1.5 * Config.IN, z), "normal": t.basis * Vector3.DOWN})
+			if not defs.has(key):
+				continue
+			var z_sign := 1.0 if side == "bottom" else -1.0
+			var tags: Array = []
+			var ids: Array = defs[key].get("ids", [])
+			for i in ids.size():
+				var off: float = float(offsets[i]) if i < offsets.size() else 0.0
+				tags.append({"id": int(ids[i]), "pos": t * Vector3(off * Config.IN, -1.5 * Config.IN, 14.0 * Config.IN * z_sign), "normal": t.basis * Vector3.DOWN})
+			out.append({"key": key, "name": str(defs[key].get("name", key)), "tags": tags,
+				"aim": t * Vector3(0, 6.5 * Config.IN, 19.0 * Config.IN * z_sign), "up": t.basis * Vector3(0, 0, z_sign)})
 	return out
 
 ## World position of the AprilTag under the raised (active) cell of an alliance's hive.

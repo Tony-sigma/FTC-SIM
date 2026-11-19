@@ -25,6 +25,7 @@ public class SimLink {
     private List<String> servoNames = new ArrayList<>();
     private volatile boolean helloSeen = false;
     private volatile List<double[]> camTags = new ArrayList<>();
+    private volatile List<String> camNames = new ArrayList<>();
     private volatile double[] camPose = {0, 0, 0};
     private volatile String cameraName = "Webcam 1";
 
@@ -75,14 +76,17 @@ public class SimLink {
                     if (imu.size() >= 2) { yawDeg = Json.num(imu.get(0)); yawRateDeg = Json.num(imu.get(1)); }
                     simTime = Json.num(m.get("t"));
                     List<double[]> tags = new ArrayList<>();
+                    List<String> tagNames = new ArrayList<>();
                     for (Object o : Json.list(m.get("tags"))) {
                         List<Object> t = Json.list(o);
-                        if (t.size() >= 7) {
-                            double[] row = new double[7];
-                            for (int k = 0; k < 7; k++) row[k] = Json.num(t.get(k));
+                        if (t.size() >= 6) {
+                            double[] row = new double[5];
+                            for (int k = 0; k < 5; k++) row[k] = Json.num(t.get(k + 1));
                             tags.add(row);
+                            tagNames.add(String.valueOf(t.get(0)));
                         }
                     }
+                    camNames = tagNames;
                     camTags = tags;
                     List<Object> cp = Json.list(m.get("campose"));
                     if (cp.size() >= 3) camPose = new double[]{Json.num(cp.get(0)), Json.num(cp.get(1)), Json.num(cp.get(2))};
@@ -169,8 +173,9 @@ public class SimLink {
     public double simTime() { return simTime; }
     public double yawDeg() { return yawDeg; }
     public double yawRateDeg() { return yawRateDeg; }
-    /** AprilTags the camera sees, biggest first: {id, tx, ty, area, x, y, z}; x/y/z in inches in the camera frame. */
+    /** AprilTag clusters the camera sees, biggest first: {percent found, x, y, z, roll}; x/y/z in inches in the camera frame. */
     public List<double[]> cameraTags() { return camTags; }
+    public List<String> cameraClusterNames() { return camNames; }
     /** Robot pose worked out from the tags: {x m, y m, heading deg}. */
     public double[] cameraRobotPose() { return camPose; }
     public String cameraName() { return cameraName; }

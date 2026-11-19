@@ -6,7 +6,7 @@ extends Node
 
 var robot
 var field
-## Latest detections: [{ id, tx, ty, ta, dist_m, cam_xyz }], best (largest) first.
+## Latest cluster detections: [{ name, key, percent, tx, ty, ta, dist_m, cam_xyz, roll }], best first.
 var tags: Array = []
 ## Robot pose from the tags, in FTC field coordinates: [x_m, y_m, heading_deg]; empty if no tag is in view.
 var botpose: Array = []
@@ -48,25 +48,38 @@ func camera_frame() -> Array:
 func _physics_process(_dt: float) -> void:
 	var cam := camera_frame()
 	var found: Array = []
-	for tag in field.april_tags():
-		var v: Vector3 = tag["pos"] - cam[0]
-		var dist := v.length()
-		var f: float = v.dot(cam[1])
-		if dist > _range or f <= 0.01:
+	for cluster in field.april_tag_clusters():
+		# A cluster is detected when at least one of its four tags can be read.
+		var seen := 0
+		var best_area := 0.0
+		for tag in cluster["tags"]:
+			var v: Vector3 = tag["pos"] - cam[0]
+			var dist := v.length()
+			var f: float = v.dot(cam[1])
+			if dist > _range or f <= 0.01:
+				continue
+			if absf(rad_to_deg(atan2(v.dot(cam[2]), f))) > _hfov / 2.0 or absf(rad_to_deg(atan2(v.dot(cam[3]), f))) > _vfov / 2.0:
+				continue
+			var facing: float = tag["normal"].dot(-v / dist)
+			if facing < cos(deg_to_rad(_max_view)):
+				continue
+			seen += 1
+			var image_area := 4.0 * tan(deg_to_rad(_hfov / 2.0)) * tan(deg_to_rad(_vfov / 2.0)) * dist * dist
+			best_area = maxf(best_area, 100.0 * _tag_size * _tag_size * facing / image_area)
+		if seen == 0:
 			continue
-		var tx := rad_to_deg(atan2(v.dot(cam[2]), f))
-		var ty := rad_to_deg(atan2(v.dot(cam[3]), f))
-		if absf(tx) > _hfov / 2.0 or absf(ty) > _vfov / 2.0:
-			continue
-		# The tag has to face the camera enough to be read.
-		var facing: float = tag["normal"].dot(-v / dist)
-		if facing < cos(deg_to_rad(_max_view)):
-			continue
-		var image_area := 4.0 * tan(deg_to_rad(_hfov / 2.0)) * tan(deg_to_rad(_vfov / 2.0)) * dist * dist
-		found.append({"id": tag["id"], "tx": tx + _rng.randfn(0.0, _angle_noise), "ty": ty + _rng.randfn(0.0, _angle_noise),
-			"ta": 100.0 * _tag_size * _tag_size * facing / image_area, "dist_m": dist,
-			"cam_xyz": Vector3(v.dot(cam[2]), f, v.dot(cam[3]))})
-	found.sort_custom(func(a, b): return a["ta"] > b["ta"])
+		# The pose the SDK reports for a cluster is the centre of the cell's opening, not the sticker.
+		var a: Vector3 = cluster["aim"] - cam[0]
+		var af: float = a.dot(cam[1])
+		var up: Vector3 = cluster["up"]
+		found.append({"name": cluster["name"], "key": cluster["key"], "percent": 100.0 * seen / cluster["tags"].size(),
+			"tx": rad_to_deg(atan2(a.dot(cam[2]), af)) + _rng.randfn(0.0, _angle_noise),
+			"ty": rad_to_deg(atan2(a.dot(cam[3]), af)) + _rng.randfn(0.0, _angle_noise),
+			"ta": best_area, "dist_m": a.length(), "cam_xyz": Vector3(a.dot(cam[2]), af, a.dot(cam[3])),
+			# Roll: how the sticker is turned in the picture. Near 0 = right way up (a raised, scorable
+			# cell seen from in front of its opening); near 180 = upside down (the lowered cell).
+			"roll": rad_to_deg(atan2(up.dot(cam[2]), up.dot(cam[3])))})
+	found.sort_custom(func(x, y): return x["ta"] > y["ta"])
 	tags = found
 	if found.is_empty():
 		botpose = []
@@ -76,8 +89,8 @@ func _physics_process(_dt: float) -> void:
 
 func summary() -> String:
 	if tags.is_empty():
-		return "no tag in view"
+		return "no tags in view"
 	var parts: Array = []
 	for t in tags:
-		parts.append("tag %d  tx %+.1f  ty %+.1f" % [t["id"], t["tx"], t["ty"]])
-	return "   |   ".join(parts)
+		parts.append("%s %d%%  bearing %+.0f  roll %+.0f" % [t["name"], int(t["percent"]), -t["tx"], t["roll"]])
+	return "  |  ".join(parts)

@@ -19,10 +19,16 @@
     "flower_height_in": 17.5,
     "flower_release_interval_s": 0.35,
     "flower_lever_reach_in": 2.5,
-    "hive_pivot_height_in": 43.03,
-    "_hive_note": "The hive is a seesaw on top of the A-frame (models in cad/field/). The pivot height is the axle holder height measured from the frame CAD. Rule from the team: at hive_tip_pollen pollen in the raised cell it tips, and the pollen inside at that moment count as scored. They then roll out of the lowered cell and the other cell becomes the raised one. Tilt angle and tip time are guesses.",
-    "_april_tag_note": "PLACEHOLDER IDs. Each hive has a tag under each cell (audience side and scoring side). Replace with the numbers from the manual.",
-    "april_tags": { "red_audience": 1, "red_scoring": 2, "blue_audience": 3, "blue_scoring": 4 },
+    "hive_pivot_height_in": 43.95,
+    "_hive_note": "The hive is a seesaw on top of the A-frame (models in cad/field/). Pivot height 43.95 in and tilt 30 deg are the BEE simulator's values (from the game manual); the frame CAD's axle holder agrees to within an inch. Rule from the team: at hive_tip_pollen pollen in the raised cell it tips, and the pollen inside at that moment count as scored. They then roll out of the lowered cell and the other cell becomes the raised one. Tip time is a guess.",
+    "_april_tag_note": "From the official AprilTag art (ftc-resources.firstinspires.org, 2027 field): every hive cell has a cluster of four 36h11 tags on a 17 x 5 in sticker on its underside. FTC SDK 12.0 reports each cluster as one detection whose pose points at the centre of the cell's opening.",
+    "april_tag_clusters": {
+      "red_scoring": { "name": "RED SCORING", "ids": [30, 31, 32, 33] },
+      "red_audience": { "name": "RED AUDIENCE", "ids": [34, 35, 36, 37] },
+      "blue_audience": { "name": "BLUE AUDIENCE", "ids": [38, 39, 40, 41] },
+      "blue_scoring": { "name": "BLUE SCORING", "ids": [42, 43, 44, 45] }
+    },
+    "april_tag_offsets_in": [-6.0, -2.26, 3.24, 6.99],
     "hive_tip_pollen": 8,
     "hive_tip_angle_deg": 30.0,
     "hive_tip_time_s": 0.8
@@ -125,8 +131,9 @@
     "_cad_pose_note": "How far the levers are folded out in the CAD export (0 = upright, 90 = flat), from models/measurements.json. The new CAD has them at 138 deg, i.e. past flat and pointing down.",
     "cad_pose_deg": 138.1,
     "length_m": 0.1835,
-    "stowed_deg": 0.0,
-    "deployed_deg": 90.0,
+    "_angles_note": "From the team: the levers rest at about 100 deg (default) and go to 138 deg to work the flowers. 0 = straight up, 90 = flat. At 100 deg each lever sticks out about 7 in past the chassis, so the robot is about 31 in long in its default pose: check that against the starting-size rule.",
+    "stowed_deg": 100.0,
+    "deployed_deg": 138.0,
     "speed_deg_per_s": 240.0,
     "front_pivot_m": [0.0, 0.1559, -0.162],
     "back_pivot_m": [0.0, 0.1559, 0.162],
@@ -135,7 +142,7 @@
   },
 
   "camera": {
-    "_note": "The main camera: an Arducam (USB webcam) on the shooter, looking where it shoots, read in code through the FTC VisionPortal + AprilTagProcessor. The sim does not process images: it works out which AprilTags are in view from where the robot and turret are. position_m is in the turret's frame (+x = shooting direction, +y up) and comes from the CAD ('Camera <1>' on the shooter); mount_pitch_deg (tilted up 45 deg) is from the team. PLACEHOLDERS: the field of view (depends on the Arducam model and lens), max range and viewing angle, and tag_size_in. The chassis also carries a second camera and two Huskylens as helpers; they are not simulated yet.",
+    "_note": "The main camera: an Arducam (USB webcam) on the shooter, looking where it shoots, read in code through the FTC VisionPortal + AprilTagProcessor. The sim does not process images: it works out which AprilTags are in view from where the robot and turret are. position_m is in the turret's frame (+x = shooting direction, +y up) and comes from the CAD ('Camera <1>' on the shooter); mount_pitch_deg (tilted up 45 deg) is from the team. tag_size_in is measured off the official sticker art. PLACEHOLDERS: the field of view (depends on the Arducam model and lens), max range and viewing angle. The chassis also carries a second camera and two Huskylens as helpers; they are not simulated yet.",
     "name": "Webcam 1",
     "position_m": [0.157, 0.351, 0.0],
     "mount_pitch_deg": 45.0,
@@ -143,7 +150,7 @@
     "fov_vertical_deg": 56.2,
     "max_range_in": 144.0,
     "max_view_angle_deg": 75.0,
-    "tag_size_in": 4.0,
+    "tag_size_in": 3.27,
     "angle_noise_deg": 0.0,
     "pose_noise_in": 0.0
   },

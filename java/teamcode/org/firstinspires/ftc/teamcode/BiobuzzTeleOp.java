@@ -10,6 +10,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagClusterDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
@@ -21,7 +22,7 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
  *   Left trigger intake (both sides)     Right trigger shoot
  *   Right bumper spit pollen back out    Left bumper   slow mode
  *   D-pad left/right  turret             D-pad up/down hood
- *   Right stick click  turret auto-aim on/off (the camera keeps the turret on our hive's AprilTag)
+ *   Right stick click  turret auto-aim on/off (the camera keeps the turret on our hive's raised cell)
  *   A / B        front / back lever      Y  field-centric on/off     X  reset heading
  */
 @TeleOp(name = "Biobuzz TeleOp", group = "Biobuzz")
@@ -36,8 +37,8 @@ public class BiobuzzTeleOp extends OpMode {
     private double turret = 0.5, hood = 0.5;
     private boolean fieldCentric = true, leverFrontOut = false, leverBackOut = false;
     private boolean lastA, lastB, lastY, lastStick;
-    /** AprilTag IDs under OUR hive's two cells. PLACEHOLDERS: use the numbers from the game manual. */
-    private static final int[] OUR_TAGS = {1, 2};
+    /** Our alliance: cluster names start with "RED" or "BLUE". */
+    private static final String OUR_ALLIANCE = "RED";
     /** The 6000 rpm shooter is far faster than a shot needs; about a fifth of full power reaches the hive. Tune this. */
     private static final double SHOOTER_POWER = 0.22;
     private boolean autoAim = false;
@@ -120,17 +121,22 @@ public class BiobuzzTeleOp extends OpMode {
         // ---- turret, hood, levers ----
         if (gamepad1.right_stick_button && !lastStick) autoAim = !autoAim;
         lastStick = gamepad1.right_stick_button;
-        // Pick a tag in view that belongs to our hive.
-        AprilTagDetection tag = null;
+        // Each hive cell has a cluster of four AprilTags, and the SDK reports a cluster as one detection
+        // that points at the centre of the cell's opening. Aim at the one that is ours (name starts with
+        // our colour) and the right way up (roll between -90 and 90 = the raised cell we can score in).
+        AprilTagClusterDetection tag = null;
         for (AprilTagDetection d : aprilTag.getDetections()) {
-            if (tag == null && d.metadata != null && (d.id == OUR_TAGS[0] || d.id == OUR_TAGS[1])) tag = d;
+            if (tag == null && d instanceof AprilTagClusterDetection) {
+                AprilTagClusterDetection cluster = (AprilTagClusterDetection) d;
+                if (cluster.metadata.name.startsWith(OUR_ALLIANCE) && Math.abs(cluster.ftcPose.roll) < 90) tag = cluster;
+            }
         }
         boolean seesTag = tag != null;
         if (gamepad1.dpad_left) { turret += 0.004; autoAim = false; }
         if (gamepad1.dpad_right) { turret -= 0.004; autoAim = false; }
         if (autoAim) {
             if (seesTag) {
-                // bearing = how many degrees the camera must turn LEFT to face the tag. One full servo
+                // bearing = how many degrees the camera must turn LEFT to face the cell's opening. One full servo
                 // travel is 360 degrees of turret and a bigger position turns it left, so add a share of it.
                 turret += tag.ftcPose.bearing / 360.0 * 0.2;
             } else {
@@ -160,8 +166,8 @@ public class BiobuzzTeleOp extends OpMode {
         telemetry.addData("Heading", "%.1f deg", Math.toDegrees(heading));
         telemetry.addData("Turret / hood", "%.2f / %.2f", turret, hood);
         telemetry.addData("Auto-aim", autoAim ? "ON" : "off");
-        if (seesTag) telemetry.addData("Camera", "tag %d  bearing %.1f  range %.0f in", tag.id, tag.ftcPose.bearing, tag.ftcPose.range);
-        else telemetry.addData("Camera", "no tag");
+        if (seesTag) telemetry.addData("Camera", "%s  bearing %.1f  range %.0f in  %.0f%% seen", tag.metadata.name, tag.ftcPose.bearing, tag.ftcPose.range, tag.percentClusterFound);
+        else telemetry.addData("Camera", "no scorable cell in view");
         telemetry.addData("Front left encoder", frontLeft.getCurrentPosition());
     }
 

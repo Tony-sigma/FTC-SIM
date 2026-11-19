@@ -1,18 +1,16 @@
 package org.firstinspires.ftc.vision.apriltag;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
-/** One AprilTag the camera sees right now. */
+/**
+ * Something the AprilTagProcessor found. Since FTC SDK 12.0 every detection is one of two kinds:
+ * AprilTagSingleDetection (a lone tag) or AprilTagClusterDetection (a group of tags, as on the BIOBUZZ
+ * hive cells). Check which with instanceof and cast to read its metadata. The pose lives here.
+ */
 public class AprilTagDetection {
-    public final int id;
-    public final int hamming;
-    public final float decisionMargin;
-    /** Non-null when the tag is a known one; check this before using ftcPose, as on the real robot. */
-    public final AprilTagMetadata metadata;
     public final AprilTagPoseFtc ftcPose;
-    /** The robot's position on the field worked out from this tag. */
+    /** The robot's position on the field worked out from this detection. */
     public final Pose3D robotPose;
     public final long frameAcquisitionNanoTime;
-    public AprilTagDetection(int id, AprilTagMetadata metadata, AprilTagPoseFtc ftcPose, Pose3D robotPose, long time) {
-        this.id = id; this.hamming = 0; this.decisionMargin = 100f; this.metadata = metadata; this.ftcPose = ftcPose;
-        this.robotPose = robotPose; this.frameAcquisitionNanoTime = time;
+    protected AprilTagDetection(AprilTagPoseFtc ftcPose, Pose3D robotPose, long time) {
+        this.ftcPose = ftcPose; this.robotPose = robotPose; this.frameAcquisitionNanoTime = time;
     }
 }

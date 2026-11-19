@@ -42,8 +42,8 @@ var lever_front_servo := 0.0
 var lever_back_servo := 0.0
 ## Where the parts actually are right now (degrees).
 var turret_deg := 0.0
-var lever_front_deg := 0.0
-var lever_back_deg := 0.0
+var lever_front_deg := 100.0
+var lever_back_deg := 100.0
 var has_cad_model := false
 
 ## Game-piece mechanisms, commanded like motors/servos.
@@ -128,6 +128,8 @@ func apply_config() -> void:
 	_turret_speed = Config.num("turret.servo_speed_deg_per_s", 400.0) * ratio
 	_lever_stowed = Config.num("levers.stowed_deg", 0.0)
 	_lever_deployed = Config.num("levers.deployed_deg", 90.0)
+	lever_front_deg = _lever_stowed
+	lever_back_deg = _lever_stowed
 	_lever_speed = Config.num("levers.speed_deg_per_s", 240.0)
 	_lever_signs = [Config.num("levers.front_deploy_sign", -1.0), Config.num("levers.back_deploy_sign", 1.0)]
 	_lever_cad_deg = Config.num("levers.cad_pose_deg", 0.0)
@@ -244,7 +246,7 @@ func deployed_lever_bars() -> Array:
 	var out: Array = []
 	var degs := [lever_front_deg, lever_back_deg]
 	for i in 2:
-		if degs[i] < 60.0:
+		if degs[i] < _lever_deployed - 8.0:   # only a lever that is (nearly) fully out works a flower
 			continue
 		var a := deg_to_rad(degs[i])
 		var p: Vector3 = _lever_pivots[i]
