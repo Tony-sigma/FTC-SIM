@@ -100,6 +100,13 @@ var _shape: CollisionShape3D
 var _shell: MeshInstance3D
 var _turret_node: Node3D
 var _lever_nodes: Array[Node3D] = []
+var _hood_node: Node3D
+var _flywheel_node: Node3D
+var _top_wheel_node: Node3D
+var _cad_line_deg := 22.7
+var _top_ratio := 2.25
+var _spin_per_speed := 0.0
+const Ballistics := preload("res://scripts/ballistics.gd")
 
 func _ready() -> void:
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
@@ -153,6 +160,14 @@ func apply_config() -> void:
 	_hood_max = Config.num("shooter.hood_max_deg", 60.0)
 	_hood_speed = Config.num("shooter.hood_speed_deg_per_s", 90.0)
 	_exit_offset = _vec("shooter.exit_offset_m", Vector3(0.1, 0.5, 0.0))
+	_cad_line_deg = Config.num("shooter.cad_wheel_line_deg", 22.7)
+	_top_ratio = Config.num("shooter.top_wheel_speed_ratio", 2.25)
+	# Spin the ball leaves with, per m/s of exit speed. Rolling between two surfaces moving at different
+	# speeds gives spin = (difference in surface speed) / (ball diameter).
+	var surf_ratio := _top_ratio * Config.num("shooter.top_wheel_diameter_in", 3.0) / Config.num("shooter.flywheel_diameter_in", 4.0)
+	var ball_d := Config.inches("pollen.diameter_in", 2.8)
+	var fly_surface_per_exit := 1.0 / maxf(Config.num("shooter.exit_speed_fraction", 0.8), 0.01)
+	_spin_per_speed = (surf_ratio - 1.0) * fly_surface_per_exit / ball_d * Config.num("pollen.spin_efficiency", 0.6)
 	_build_body()
 	_build_intake_zones()
 
@@ -227,6 +242,15 @@ func _update_mechanisms(dt: float) -> void:
 	lever_back_deg = move_toward(lever_back_deg, lerpf(_lever_stowed, _lever_deployed, clampf(lever_back_servo, 0.0, 1.0)), _lever_speed * dt)
 	if _turret_node:
 		_turret_node.rotation.y = deg_to_rad(turret_deg)
+	if _hood_node:
+		# The shot leaves at right angles to the line between the two wheel centres, so a shot angle of
+		# hood_deg means that line is at (90 - hood_deg); the CAD has it at cad_wheel_line_deg.
+		_hood_node.rotation.z = -deg_to_rad((90.0 - hood_deg) - _cad_line_deg)
+	if _flywheel_node and _top_wheel_node:
+		# Slowed down a lot so you can see them turn: the real wheels do thousands of rpm.
+		var turn := flywheel_fraction * 60.0 * dt
+		_flywheel_node.rotation.z -= turn
+		_top_wheel_node.rotation.z += turn * _top_ratio
 	if _lever_nodes.size() == 2:
 		# The models are exported folded out by cad_pose_deg, so turn them back by that much.
 		_lever_nodes[0].rotation.x = deg_to_rad(lever_front_deg - _lever_cad_deg) * _lever_signs[0]
@@ -324,13 +348,18 @@ func _update_game_pieces(dt: float) -> void:
 				var out := global_transform.basis.z * sgn
 				pollen.spawn_ball(global_position + out * (length / 2.0 + 0.09) + Vector3(0, 0.05, 0), velocity + out * 1.0, self)
 
-## Where a ball leaves the shooter and how fast, right now: [position, velocity] in world space.
-## The shooter points along the turret's +X (the camera side), tilted up by the hood angle.
-func shot_state() -> Array:
+## Where a ball leaves the shooter, how fast, and with what spin: [position, velocity, spin] in world space.
+## The shooter points along the turret's +X (the camera side), tilted up by the hood angle. The faster top
+## wheel gives the ball topspin about the turret's sideways axis.
+func shot_state_for(power_fraction: float, hood_angle_deg: float) -> Array:
 	var turret_basis := global_transform.basis * Basis(Vector3.UP, deg_to_rad(turret_deg))
-	var a := deg_to_rad(hood_deg)
+	var a := deg_to_rad(hood_angle_deg)
 	var dir := (turret_basis.x * cos(a) + Vector3.UP * sin(a)).normalized()
-	return [global_position + turret_basis * _exit_offset, velocity + dir * _exit_speed_max * flywheel_fraction]
+	var speed := _exit_speed_max * power_fraction
+	return [global_position + turret_basis * _exit_offset, velocity + dir * speed, -turret_basis.z * (_spin_per_speed * speed)]
+
+func shot_state() -> Array:
+	return shot_state_for(flywheel_fraction, hood_deg)
 
 func max_exit_speed() -> float:
 	return _exit_speed_max
@@ -347,7 +376,7 @@ func _launch() -> void:
 	var st := shot_state()
 	flywheel_fraction *= 1.0 - _shot_drop
 	if pollen != null:
-		pollen.spawn_ball(st[0], st[1], self)
+		pollen.spawn_ball(st[0], st[1], self, st[2])
 
 ## Dotted arc showing where a shot would go with the current flywheel speed, hood and turret.
 func _update_aim_dots() -> void:
@@ -368,12 +397,20 @@ func _update_aim_dots() -> void:
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			add_child(mi)
 			_aim_dots.append(mi)
-	var show := flywheel_fraction > 0.15
+	var show := flywheel_fraction > 0.03
 	var st := shot_state()
-	var g := Vector3(0, -9.8, 0)
+	var p: Vector3 = st[0]
+	var v: Vector3 = st[1]
+	var k_drag: float = pollen.k_drag if pollen != null else 0.0
+	var k_area: float = pollen.k_area if pollen != null else 0.0
+	var lift_max: float = pollen.lift_max if pollen != null else 0.0
+	var rad: float = pollen.radius if pollen != null else 0.036
+	var dt := 0.0125
 	for i in _aim_dots.size():
-		var t := 0.05 * (i + 1)
-		var p: Vector3 = st[0] + st[1] * t + 0.5 * g * t * t
+		for sub in 4:
+			var acc := Vector3(0, -Ballistics.G, 0) + Ballistics.air_accel(v, st[2], rad, k_drag, k_area, lift_max)
+			p += v * dt + 0.5 * acc * dt * dt
+			v += acc * dt
 		_aim_dots[i].visible = show and p.y > 0.0
 		_aim_dots[i].global_position = p
 
@@ -458,6 +495,9 @@ func _build_body() -> void:
 		_visual.queue_free()
 	_lever_nodes.clear()
 	_turret_node = null
+	_hood_node = null
+	_flywheel_node = null
+	_top_wheel_node = null
 	if _shape == null:
 		_shape = CollisionShape3D.new()
 		add_child(_shape)
@@ -478,6 +518,12 @@ func _build_body() -> void:
 		_shell.visible = false
 		_add_model("chassis", _visual, Vector3.ZERO)
 		_turret_node = _add_model("turret", _visual, _vec("turret.pivot_m", Vector3.ZERO))
+		# The moving parts of the shooter ride on the turret: the flywheel and the hood turn about the
+		# flywheel axle, and the top wheel sits on the hood.
+		var fly_pos := _vec("shooter.flywheel_pos_m", Vector3(0.078, 0.351, 0))
+		_flywheel_node = _add_model("flywheel", _turret_node, fly_pos)
+		_hood_node = _add_model("hood", _turret_node, fly_pos)
+		_top_wheel_node = _add_model("top_wheel", _hood_node, _vec("shooter.top_wheel_pos_m", Vector3(-0.054, 0.406, 0)) - fly_pos)
 		_lever_nodes.append(_add_model("lever_front", _visual, _vec("levers.front_pivot_m", Vector3(0, 0.156, -0.162))))
 		_lever_nodes.append(_add_model("lever_back", _visual, _vec("levers.back_pivot_m", Vector3(0, 0.156, 0.162))))
 		# Small arrow on the floor in front of the robot marks which end is "front".

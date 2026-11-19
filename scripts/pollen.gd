@@ -11,6 +11,12 @@ var _material: StandardMaterial3D
 var _physics: PhysicsMaterial
 var _ang_damp := 0.6
 
+const Ballistics := preload("res://scripts/ballistics.gd")
+## Air: k_drag = 0.5 * rho * area * Cd / mass, k_area = 0.5 * rho * area / mass.
+var k_drag := 0.0
+var k_area := 0.0
+var lift_max := 0.35
+
 func _ready() -> void:
 	apply_config()
 
@@ -31,6 +37,11 @@ func apply_config() -> void:
 			friction = float(t.get("friction", 0.3))
 			ang_damp = float(t.get("angular_damp", 3.0))
 	_ang_damp = ang_damp
+	var area := PI * radius * radius
+	var rho := Config.num("pollen.air_density_kg_m3", 1.2)
+	k_area = 0.5 * rho * area / mass_kg
+	k_drag = k_area * Config.num("pollen.drag_coefficient", 0.5)
+	lift_max = Config.num("pollen.lift_coefficient_max", 0.35)
 	_mesh = SphereMesh.new()
 	_mesh.radius = radius
 	_mesh.height = radius * 2.0
@@ -48,7 +59,7 @@ func apply_config() -> void:
 func ball_count() -> int:
 	return get_tree().get_nodes_in_group("pollen").size()
 
-func spawn_ball(pos: Vector3, vel := Vector3.ZERO, ignore: PhysicsBody3D = null) -> RigidBody3D:
+func spawn_ball(pos: Vector3, vel := Vector3.ZERO, ignore: PhysicsBody3D = null, spin := Vector3.ZERO) -> RigidBody3D:
 	var b := RigidBody3D.new()
 	b.mass = mass_kg
 	b.physics_material_override = _physics
@@ -68,6 +79,13 @@ func spawn_ball(pos: Vector3, vel := Vector3.ZERO, ignore: PhysicsBody3D = null)
 	add_child(b)
 	b.global_position = pos
 	b.linear_velocity = vel
+	if spin != Vector3.ZERO:
+		# A launched ball keeps its spin until it first touches something.
+		b.angular_velocity = spin
+		b.angular_damp = 0.0
+		b.contact_monitor = true
+		b.max_contacts_reported = 1
+		b.set_meta("spin", spin)
 	if ignore != null:
 		# A ball leaving the robot must not hit the robot's own collision box on the way out.
 		b.add_collision_exception_with(ignore)
@@ -79,6 +97,21 @@ func spawn_ball(pos: Vector3, vel := Vector3.ZERO, ignore: PhysicsBody3D = null)
 			if bb != null and ii != null:
 				bb.remove_collision_exception_with(ii))
 	return b
+
+## Air drag on every flying ball, plus the Magnus force on the ones still spinning from the shooter.
+func _physics_process(_dt: float) -> void:
+	for b in get_tree().get_nodes_in_group("pollen"):
+		var body := b as RigidBody3D
+		if body == null or body.sleeping or body.global_position.y < radius + 0.01:
+			continue
+		var spin := Vector3.ZERO
+		if body.has_meta("spin"):
+			if body.get_contact_count() > 0:
+				body.remove_meta("spin")
+				body.angular_damp = _ang_damp
+			else:
+				spin = body.get_meta("spin")
+		body.apply_central_force(Ballistics.air_accel(body.linear_velocity, spin, radius, k_drag, k_area, lift_max) * body.mass)
 
 func remove_ball(b: Node) -> void:
 	b.remove_from_group("pollen")

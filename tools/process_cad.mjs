@@ -18,7 +18,7 @@ const SIMPLIFY_RATIO = +(process.env.RATIO ?? 0.1);    // keep at most this frac
 const SIMPLIFY_ERROR = +(process.env.ERROR ?? 0.006);  // allowed shape error (fraction of piece size)
 const ONLY = process.argv.slice(2);                    // optional: piece names to rebuild
 // Triangle budget per piece, so a finer CAD export does not make the simulator heavier.
-const MAX_TRIANGLES = { chassis: 300000, turret: 60000, lever_front: 12000, lever_back: 12000 };
+const MAX_TRIANGLES = { chassis: 300000, turret: 50000, lever_front: 12000, lever_back: 12000, hood: 12000, top_wheel: 6000, flywheel: 8000 };
 const TINY_PART_M = 0.012;      // parts smaller than this in every direction are dropped
 
 // Names as they appear at the top of the Onshape assembly.
@@ -28,6 +28,13 @@ const GROUPS = {
   lever_front: [/^Patita </],
   lever_back: [/^Patita-Mirrored/],
 };
+// Shooter parts that move by themselves inside the turret, matched by part name. Each becomes its own model.
+const TOP_WHEEL = /3in 35A Compliant|1in Hex Fill|20T HTD3 Pulley|142\.95 mm Churro/i;
+const HOOD = /Placa lateral capucha|Hood thing|Placa para engranes|30T GT2-3 Pulley|27\.5mm churro|Spur gear \(24 teeth\)|Wide Belt/i;
+const FLYWHEEL = /4in 35A Compliant|^Flywheel$|6 in chrro|spacer flywheel/i;
+// name -> { from: the group it is cut out of, keep: which parts, pivot: where its origin goes (turret frame) }
+const SUB_PIECES = { hood: { keep: (n) => HOOD.test(n) && !TOP_WHEEL.test(n) }, top_wheel: { keep: (n) => TOP_WHEEL.test(n) }, flywheel: { keep: (n) => FLYWHEEL.test(n) } };
+const isShooterMover = (n) => HOOD.test(n) || TOP_WHEEL.test(n) || FLYWHEEL.test(n);
 const FASTENER = /screw|nut\b|nut strip|spacer|washer|standoff|shim|collar|e-clip|retaining|bearing|zip ?tie/i;
 // Which end of the robot is "front": -1 = the CAD's -X end (plain "Intake"/"Patita"), +1 = the other.
 const FRONT_SIGN = -1;
@@ -102,6 +109,10 @@ const wheelCentre = (re) => {
 const fly = wheelCentre(/4in 35A Compliant Wheel/i), topWheel = wheelCentre(/3in 35A Compliant Wheel/i);
 // Angle that turns the exported shooting direction onto the turret model's +x (the simulator's convention).
 const turretBake = fly && topWheel ? Math.atan2(fly[2] - topWheel[2], fly[0] - topWheel[0]) : 0;
+// A point in the simulator's robot frame -> the turret model's own frame (+x = shooting direction).
+const toTurret = (p) => { const c = Math.cos(turretBake), sn = Math.sin(turretBake); return [p[0] * c + p[2] * sn, p[1], -p[0] * sn + p[2] * c]; };
+const flyT = fly ? toTurret(fly) : [0, 0, 0], topT = topWheel ? toTurret(topWheel) : [0, 0, 0];
+const SUB_PIVOT = { hood: flyT, flywheel: flyT, top_wheel: topT };
 const IN = 0.0254, r = (v, d = 4) => +v.toFixed(d);
 const pods = findAll(robotNode, /GB 32mm Omni Wheel/i).map((n) => {
   const b = getBounds(n), c = toSim(centre(b));
@@ -119,7 +130,7 @@ const measurements = {
   lever_angle_as_exported_deg: { front: r(leverAngle(GROUPS[FRONT_SIGN < 0 ? 'lever_front' : 'lever_back'][0], pivots.lever_front), 1), back: r(leverAngle(GROUPS[FRONT_SIGN < 0 ? 'lever_back' : 'lever_front'][0], pivots.lever_back), 1) },
   turret_home_deg: r(-turretBake * 180 / Math.PI, 1),
   turret_home_note: 'Direction the shooter points in this export, counter-clockwise from the robot\'s right. 90 = straight ahead. The turret model itself is turned so its +x is the shooting direction.',
-  shooter: fly && topWheel ? { flywheel_centre_height_m: r(fly[1]), wheel_centre_line_deg: r(Math.atan2(topWheel[1] - fly[1], Math.hypot(topWheel[0] - fly[0], topWheel[2] - fly[2])) * 180 / Math.PI, 2),
+  shooter: fly && topWheel ? { flywheel_pos_turret_m: flyT.map((v) => r(v)), top_wheel_pos_turret_m: topT.map((v) => r(v)), flywheel_centre_height_m: r(fly[1]), wheel_centre_line_deg: r(Math.atan2(topWheel[1] - fly[1], Math.hypot(topWheel[0] - fly[0], topWheel[2] - fly[2])) * 180 / Math.PI, 2),
     shot_angle_deg: r(90 - Math.atan2(topWheel[1] - fly[1], Math.hypot(topWheel[0] - fly[0], topWheel[2] - fly[2])) * 180 / Math.PI, 2) } : null,
   bounds_m: { min: all.min.map((v) => r(v)), max: all.max.map((v) => r(v)) },
   pivots_m: Object.fromEntries(Object.entries(pivots).map(([k, v]) => [k, v.map((x) => r(x))])),
@@ -127,11 +138,13 @@ const measurements = {
 };
 
 // ---------- 2. write one slim model per moving piece ----------
-for (const [name, patterns] of Object.entries(GROUPS)) {
+const PIECE_NAMES = Object.keys(GROUPS).concat(Object.keys(SUB_PIECES));
+for (const name of PIECE_NAMES) {
   if (ONLY.length && !ONLY.includes(name)) continue;
+  const sub = SUB_PIECES[name];
   const doc = await io.read(SRC);
   const robot = doc.getRoot().listScenes()[0].listChildren()[0];
-  const srcName = (FRONT_SIGN < 0 || !name.startsWith('lever')) ? name : (name === 'lever_front' ? 'lever_back' : 'lever_front');
+  const srcName = sub ? 'turret' : ((FRONT_SIGN < 0 || !name.startsWith('lever')) ? name : (name === 'lever_front' ? 'lever_back' : 'lever_front'));
   const pats = GROUPS[srcName];
   for (const g of robot.listChildren()) if (!pats.some((p) => p.test(g.getName()))) disposeTree(g);
   let before = 0, dropped = 0;
@@ -139,14 +152,18 @@ for (const [name, patterns] of Object.entries(GROUPS)) {
     node.listChildren().forEach(strip);
     if (!node.getMesh()) return;
     const b = getBounds(node), size = Math.max(...b.max.map((v, i) => v - b.min[i]));
-    if (FASTENER.test(node.getName()) || size < TINY_PART_M) { node.dispose(); dropped++; }
+    const nm = node.getName();
+    // The moving shooter parts are cut out of the turret and kept only in their own piece.
+    const wrongPiece = sub ? !sub.keep(nm) : (name === 'turret' && isShooterMover(nm));
+    if (wrongPiece) { node.dispose(); return; }
+    if (FASTENER.test(nm) || size < TINY_PART_M) { node.dispose(); dropped++; }
   };
   strip(robot);
   await doc.transform(prune());
   for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) before += (p.getIndices() ?? p.getAttribute('POSITION')).getCount() / 3;
 
   // p_sim = R * (p_cad - origin) - pivot, as a column-major 4x4 on the root node.
-  const pv = pivots[name];
+  const pv = sub ? pivots.turret : pivots[name];
   const o = origin;
   const base = [
     0, 0, s, 0,
@@ -154,7 +171,7 @@ for (const [name, patterns] of Object.entries(GROUPS)) {
     -s, 0, 0, 0,
     s * o[2] - pv[0], -o[1] - pv[1], -s * o[0] - pv[2], 1,
   ];
-  if (name === 'turret' && turretBake !== 0) {
+  if ((name === 'turret' || sub) && turretBake !== 0) {
     // Turn the turret about its pivot so the shooter points along +x: x' = x cos + z sin, z' = -x sin + z cos.
     const c = Math.cos(turretBake), sn = Math.sin(turretBake);
     for (let col = 0; col < 4; col++) {
@@ -163,6 +180,7 @@ for (const [name, patterns] of Object.entries(GROUPS)) {
       base[col * 4 + 2] = -x * sn + z * c;
     }
   }
+  if (sub) { const sp = SUB_PIVOT[name]; base[12] -= sp[0]; base[13] -= sp[1]; base[14] -= sp[2]; }
   robot.setMatrix(base);
   await doc.transform(dedup(), flatten(), join(), weld(),
     simplify({ simplifier: MeshoptSimplifier, ratio: SIMPLIFY_RATIO, error: SIMPLIFY_ERROR }), prune());

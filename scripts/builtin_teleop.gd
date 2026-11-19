@@ -28,6 +28,9 @@ var _mouth_half_angle := 75.0
 var auto_shot_status := ""
 var _auto_power := 1.0
 var _manual_power := 0.22
+const Ballistics := preload("res://scripts/ballistics.gd")
+var _plan := {}
+var _plan_age := 1.0
 var _speed_tol := 0.04
 var _turret_manual_rate := 90.0
 
@@ -112,50 +115,62 @@ func _pad_axis(a: JoyAxis) -> float:
 	var id := gamepad_id()
 	return Input.get_joy_axis(id, a) if id >= 0 else 0.0
 
-## Pick the hood angle (and, when the hood alone cannot do it, the flywheel speed) that lands a
-## shot on `target`. Prefers the steepest arc, so the ball drops into the cell instead of flying in
-## flat and bouncing back out.
-## Returns { ok, hood_servo, power }.
+## Pick the hood angle and flywheel speed that land a shot on `target`. It flies each candidate shot
+## through the same air model the real balls use (gravity, drag, spin), so the answer allows for the dip
+## the topspin causes. Prefers the steepest arc, so the ball drops into the cell instead of flying in
+## flat and bouncing back out. Returns { ok, reason, hood_servo, power }.
 func compute_shot(target: Vector3) -> Dictionary:
 	var start: Vector3 = robot.shot_state()[0]
 	var flat := Vector2(target.x - start.x, target.z - start.z)
 	var d := flat.length()
 	var h := target.y - start.y
 	var lim: Vector2 = robot.hood_limits_deg()
-	var v_max: float = robot.max_exit_speed()
 	var fallback := {"ok": false, "reason": "OUT OF RANGE", "hood_servo": inverse_lerp(lim.x, lim.y, clampf(45.0, lim.x, lim.y)), "power": 1.0}
 	if shot_outward != Vector3.ZERO and d > 0.01:
 		var from_mouth := Vector3(-flat.x, 0, -flat.y).normalized()
 		if rad_to_deg(from_mouth.angle_to(shot_outward)) > _mouth_half_angle:
 			fallback["reason"] = "WRONG SIDE OF HIVE"
 			return fallback
-	var g := 9.8
-	# No shot at all is possible either because the mouth is too high above us (too close) or too far off.
 	if rad_to_deg(atan2(h, d)) > 40.0:
 		fallback["reason"] = "TOO CLOSE - back away from the hive"
 		fallback["hood_servo"] = 1.0
 	else:
 		fallback["reason"] = "TOO FAR - drive closer"
-	var deg := lim.y
+	var pollen = robot.pollen
+	var rad: float = pollen.radius if pollen != null else 0.036
+	var k_drag: float = pollen.k_drag if pollen != null else 0.0
+	var k_area: float = pollen.k_area if pollen != null else 0.0
+	var lift_max: float = pollen.lift_max if pollen != null else 0.0
+	var height := func(power: float, deg: float) -> Array:
+		var st: Array = robot.shot_state_for(power, deg)
+		return Ballistics.height_at(st[0], st[1], st[2], d, rad, k_drag, k_area, lift_max)
 	var close_call := {}
+	var deg := lim.y
 	while deg >= lim.x - 0.001:
-		var a := deg_to_rad(deg)
-		var denom := 2.0 * cos(a) * cos(a) * (d * tan(a) - h)
-		if denom > 0.0:
-			var v := sqrt(g * d * d / denom)
-			if v <= v_max:
-				var plan := {"ok": true, "reason": "auto", "hood_servo": inverse_lerp(lim.x, lim.y, deg), "power": v / v_max}
-				# The ball must already be coming down when it reaches the mouth, or it bounces back out.
-				if v * sin(a) - g * d / (v * cos(a)) < 0.0:
-					return plan
-				if close_call.is_empty():
-					plan["ok"] = false
-					plan["reason"] = "TOO CLOSE - back away from the hive"
-					close_call = plan
-		deg -= 0.5
+		# More power always carries the ball higher at the target's distance, so search the power in halves.
+		var top: Array = height.call(1.0, deg)
+		if top[2] and top[0] >= target.y:
+			var lo := 0.02
+			var hi := 1.0
+			for i in 12:
+				var mid := (lo + hi) / 2.0
+				var r: Array = height.call(mid, deg)
+				if r[2] and r[0] >= target.y:
+					hi = mid
+				else:
+					lo = mid
+			var hit: Array = height.call(hi, deg)
+			var plan := {"ok": true, "reason": "auto", "hood_servo": inverse_lerp(lim.x, lim.y, deg), "power": hi}
+			# The ball must already be coming down when it reaches the mouth, or it bounces back out.
+			if hit[1] < 0.0:
+				return plan
+			if close_call.is_empty():
+				plan["ok"] = false
+				plan["reason"] = "TOO CLOSE - back away from the hive"
+				close_call = plan
+		deg -= 1.5
 	if not close_call.is_empty():
 		return close_call
-	# Out of reach: do the best we can (full power, 45 degrees or the nearest the hood allows).
 	return fallback
 
 func toggle_lever(front: bool) -> void:
@@ -180,7 +195,12 @@ func _physics_process(dt: float) -> void:
 		_auto_power = _manual_power
 		auto_shot_status = ""
 		if auto_aim and shot_target != null:
-			var shot := compute_shot(shot_target)
+			# Working out a shot flies a few dozen trial arcs, so do it ten times a second, not every tick.
+			_plan_age += dt
+			if _plan.is_empty() or _plan_age >= 0.1:
+				_plan = compute_shot(shot_target)
+				_plan_age = 0.0
+			var shot := _plan
 			robot.hood_servo = shot["hood_servo"]
 			_auto_power = shot["power"]
 			auto_shot_status = shot["reason"]

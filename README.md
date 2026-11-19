@@ -84,22 +84,29 @@ java RunSim.java "Biobuzz TeleOp"
 ```
 
 ## Camera and AprilTags
-Each hive has an AprilTag under each of its two cells. The main camera (an Arducam) sits on the
-shooter and looks where it shoots, tilted up 45 degrees. The sim does not process pictures: it
-works out from the robot and turret position which tags are inside the camera's field of view,
-within range and facing it, and reports what the FTC `AprilTagProcessor` would. The HUD line
-"Camera sees" shows the tags in view right now.
+Each hive cell has a cluster of four AprilTags (36h11) on its underside: RED SCORING 30-33,
+RED AUDIENCE 34-37, BLUE AUDIENCE 38-41, BLUE SCORING 42-45 (from the official AprilTag art).
+As in FTC SDK 12.0, `getDetections()` returns one `AprilTagClusterDetection` per cluster in view.
+Its pose points at the centre of that cell's opening, `metadata.name` is the cluster's name,
+`percentClusterFound` says how many of the four tags were read, and `ftcPose.roll` tells you which
+way up it is: between -90 and 90 means the raised cell you can score in.
 
-The sample `BiobuzzTeleOp` uses it: right-stick click (T on the keyboard) makes the turret search
-for our hive's tag and stay centred on it, using the tag's `bearing`.
+The main camera (an Arducam) sits on the shooter and looks where it shoots, tilted up 45 degrees.
+The sim does not process pictures: it works out from the robot and turret position which tags are
+inside the camera's field of view, within range and facing it. The HUD line "Camera sees" shows the
+clusters in view right now.
 
-Differences from the real thing: tag `yaw` / `pitch` / `roll` are always 0, lens calibration
+The sample `BiobuzzTeleOp` uses it the way the FTC tech tip describes: right-stick click (T on the
+keyboard) makes the turret search for a cluster whose name starts with our colour and whose roll
+is the right way up, then keeps it centred using `bearing`.
+
+Differences from the real thing: `yaw` and `pitch` are always 0, lens calibration
 (`setLensIntrinsics`) is accepted but not needed, and tags are never hidden behind the frame or the
 hive. The second camera on the chassis and the two Huskylens are not simulated.
 
-Placeholders in `robot_config.json`: the tag IDs (`field.april_tags`, currently 1 to 4), the
-camera's field of view (82 x 56.2 degrees), range, and tag size. `angle_noise_deg` and
-`pose_noise_in` add jitter if you want the code tested against imperfect readings.
+Placeholders in `robot_config.json`: the camera's field of view (82 x 56.2 degrees) and range.
+`angle_noise_deg` and `pose_noise_in` add jitter if you want the code tested against imperfect
+readings.
 
 ## Changing robot numbers
 Everything lives in **`robot_config.json`**: dimensions, wheel size, motor RPM, track width,
@@ -133,15 +140,19 @@ pointed at the AprilTag under the raised cell of your alliance's hive, and it al
 angle and trims the flywheel speed so the shot drops into that cell's mouth (and holds the feeders
 until the flywheel is at that speed). The HUD says when no shot is possible from where you are:
 too close, too far, or on the wrong side of the hive. A green dotted arc shows
-where a shot would go with the current flywheel speed and hood angle. The hood part itself is not
-animated; the arc is how you see it move.
-Levers go 0° (stowed) to 90° (deployed). Both move at a limited speed set in the config.
-Known limit: deployed levers do not collide with anything yet; only the chassis box does.
+where a shot would go with the current flywheel speed and hood angle. The hood, its top wheel and
+the flywheel are separate models, so you can see the hood swing and the wheels turn (slowed down).
+Levers rest at 100° and swing to 138° to work the flowers (0° = straight up, 90° = flat). Both move
+at a limited speed set in the config. Known limit: the levers do not collide with anything yet;
+only the chassis box does.
 
 ## Pollen, intakes and shooter
 - **Pollen** are real physics balls (3 in). The robot pushes them around; they never block it.
 - **Intakes:** a ball touching an intake mouth while that intake motor runs is swallowed into
   that side's feeder. The robot holds at most `intakes.total_capacity` balls.
+- **Flight:** a shot is slowed by air drag, and because the top wheel's surface runs faster than the
+  flywheel's it leaves with topspin, which makes it dip. The green arc and the automatic hood use
+  the same model. The spin and lift numbers are placeholders (`pollen._air_note`).
 - **Feeders and shooter:** each intake motor also runs its feeder, carrying balls up to the shared
   neck. A ball at the neck waits there until the flywheel is spinning *and* its intake motor
   runs; then it is launched out of the turret's Limelight side at the hood angle. Each shot

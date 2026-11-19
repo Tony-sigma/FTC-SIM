@@ -37,7 +37,12 @@
   "pollen": {
     "_note": "Size, weight and bounce are read from data/game_elements.json when it exists; these are the fallback values.",
     "diameter_in": 2.8,
-    "mass_g": 12.5
+    "mass_g": 12.5,
+    "_air_note": "Flight through the air. drag_coefficient 0.5 is typical for a smooth ball (BEE uses the same). Spin: the top shooter wheel's surface moves faster than the flywheel's, so the pollen leaves with topspin and dips. spin_efficiency is how much of the ideal spin it really gets (PLACEHOLDER) and lift_coefficient_max caps the Magnus lift (PLACEHOLDER). Set spin_efficiency to 0 to switch spin off.",
+    "drag_coefficient": 0.5,
+    "spin_efficiency": 0.6,
+    "lift_coefficient_max": 0.35,
+    "air_density_kg_m3": 1.2
   },
 
   "intakes": {
@@ -71,6 +76,12 @@
     "_hood_note": "MEASURED from cad/shooter_min.glb and cad/shooter_max.glb (2026-11). The shooter has two wheels: a 4 in flywheel and a 3 in top wheel carried by the hood, which swings around the flywheel axle. Pollen leaves through the gap between them, at right angles to the line joining the two wheel centres. That line is 22.7 deg above horizontal with the hood at its start and 43.8 deg at its end, so the shot leaves at 67.3 deg (start) down to 46.2 deg (end) above the floor. Assumes the shooter sits on the robot at the same tilt as in cad/Robot.glb; uncertainty about 2 deg. Servo 0 = flattest (hood at its end), servo 1 = steepest (hood at its start).",
     "hood_min_deg": 46.2,
     "hood_max_deg": 67.3,
+    "_parts_note": "For the moving shooter parts, from models/measurements.json (turret frame, +x = shooting direction): where the flywheel axle and the top wheel axle are, and the angle of the line between them in the CAD export (hood at its start).",
+    "flywheel_pos_m": [0.0779, 0.351, 0.0],
+    "top_wheel_pos_m": [-0.0538, 0.4061, 0.0],
+    "cad_wheel_line_deg": 22.7,
+    "top_wheel_speed_ratio": 2.25,
+    "top_wheel_diameter_in": 3.0,
     "hood_speed_deg_per_s": 90.0,
     "_exit_note": "Where pollen leaves, in the turret frame: about 0.39 m above the floor, from the CAD.",
     "exit_offset_m": [0.015, 0.39, 0.0]
