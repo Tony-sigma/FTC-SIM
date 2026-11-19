@@ -9,7 +9,7 @@ const HudScript := preload("res://scripts/hud.gd")
 const PollenScript := preload("res://scripts/pollen.gd")
 const BridgeScript := preload("res://scripts/java_bridge.gd")
 const RunnerScript := preload("res://scripts/java_runner.gd")
-const LimelightScript := preload("res://scripts/limelight.gd")
+const TagCameraScript := preload("res://scripts/tag_camera.gd")
 
 var field
 var robot
@@ -19,7 +19,7 @@ var hud
 var pollen
 var bridge
 var java_runner
-var limelight
+var tag_camera
 var _menu: Array = []   # OpModes offered in the Java menu; empty = menu closed
 var _menu_open := false
 var _alliance := "red"
@@ -52,15 +52,15 @@ func _ready() -> void:
 	teleop.robot = robot
 	add_child(teleop)
 	teleop.reset_field_heading()
-	limelight = LimelightScript.new()
-	limelight.name = "Limelight"
-	limelight.robot = robot
-	limelight.field = field
-	add_child(limelight)
+	tag_camera = TagCameraScript.new()
+	tag_camera.name = "TagCamera"
+	tag_camera.robot = robot
+	tag_camera.field = field
+	add_child(tag_camera)
 	bridge = BridgeScript.new()
 	bridge.name = "JavaBridge"
 	bridge.robot = robot
-	bridge.limelight = limelight
+	bridge.tag_camera = tag_camera
 	add_child(bridge)
 	java_runner = RunnerScript.new()
 	java_runner.name = "JavaRunner"
@@ -154,7 +154,7 @@ func _process(_dt: float) -> void:
 		"camera": _cam_names[_cam_index],
 		"gamepad": teleop.gamepad_name(),
 		"java": _java_status(),
-		"limelight": limelight.summary(),
+		"camera_sees": tag_camera.summary(),
 		"held_front": robot.held_count(0),
 		"held_back": robot.held_count(1),
 		"flywheel_rpm": robot.flywheel_rpm(),
@@ -214,7 +214,7 @@ func reset_all() -> void:
 func reload_config() -> void:
 	Config.load_config()
 	bridge.apply_config()
-	limelight.apply_config()
+	tag_camera.apply_config()
 	pollen.apply_config()
 	robot.apply_config()
 	teleop.apply_config()

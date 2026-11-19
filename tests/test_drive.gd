@@ -205,23 +205,23 @@ func _run() -> void:
 	check("from behind the cell's mouth the shot is reported as impossible", not behind["ok"] and behind["reason"] == "WRONG SIDE OF HIVE", str(behind["reason"]))
 	robot.aim_point = null
 	robot.shooter_power = 0.0
-	# Limelight: sees the tag it is pointed at, with tx near zero; sees nothing when turned away.
+	# Camera: sees the tag it is pointed at, with tx near zero; sees nothing when turned away.
 	robot.reset_pose()
 	robot.set_pose_ftc(-58, -48, 0)
 	var our_tag: Vector3 = main.field.aim_point("red")
 	robot.aim_point = our_tag
 	await steps(480)
-	var seen: Array = main.limelight.tags
+	var seen: Array = main.tag_camera.tags
 	var centred := false
 	for t in seen:
 		if absf(t["tx"]) < 0.5:
 			centred = true
-	check("Limelight sees the tag the turret points at, centred", centred, main.limelight.summary())
-	check("Limelight gives the robot's field position", main.limelight.botpose.size() == 3 and absf(main.limelight.botpose[0] - (-58 * IN)) < 0.01, str(main.limelight.botpose))
+	check("Camera sees the tag the turret points at, centred", centred, main.tag_camera.summary())
+	check("Camera gives the robot's field position", main.tag_camera.botpose.size() == 3 and absf(main.tag_camera.botpose[0] - (-58 * IN)) < 0.01, str(main.tag_camera.botpose))
 	robot.aim_point = null
 	robot.turret_goal_deg = wrapf(robot.turret_deg + 180.0, -180.0, 180.0)
 	await steps(480)
-	check("Limelight sees nothing when the turret faces away", main.limelight.tags.is_empty() and main.limelight.botpose.is_empty(), main.limelight.summary())
+	check("Camera sees nothing when the turret faces away", main.tag_camera.tags.is_empty() and main.tag_camera.botpose.is_empty(), main.tag_camera.summary())
 	# A deployed lever against a flower releases its pollen.
 	main.field.reset_elements(pollen)
 	var before: int = pollen.ball_count()

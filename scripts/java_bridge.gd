@@ -4,7 +4,7 @@ extends Node
 ## the OpMode answers with motor powers and servo positions, by the hardware names in robot_config.json.
 
 var robot  # scripts/robot.gd
-var limelight  # scripts/limelight.gd
+var tag_camera  # scripts/tag_camera.gd
 var connected := false
 var opmode := ""
 var flavor := ""     # "teleop" or "auto"
@@ -117,7 +117,7 @@ func _on_connect() -> void:
 		motors[name] = 0.0
 	var servos: Array = [_turret, _hood, _gate]
 	servos.append_array(_levers)
-	_send({"type": "hello", "motors": motors, "servos": servos, "limelight": str(Config.value("limelight.name", "limelight"))})
+	_send({"type": "hello", "motors": motors, "servos": servos, "camera": str(Config.value("camera.name", "Webcam 1"))})
 
 func _on_disconnect() -> void:
 	_peer = null
@@ -189,15 +189,17 @@ func _state(dt: float) -> Dictionary:
 	if _odo.size() >= 2:
 		motors[_odo[0]] = _encoder(_odo[0], robot.odo_forward * odo_tpm, dt)
 		motors[_odo[1]] = _encoder(_odo[1], robot.odo_strafe * odo_tpm, dt)
-	var ll: Array = []
-	var ll_pose: Array = []
-	if limelight != null:
-		for t in limelight.tags:
-			ll.append([t["id"], snappedf(t["tx"], 0.01), snappedf(t["ty"], 0.01), snappedf(t["ta"], 0.0001)])
-		for v in limelight.botpose:
-			ll_pose.append(snappedf(v, 0.0001))
+	# AprilTags the main camera sees: [id, tx, ty, area, x, y, z] with x/y/z in inches in the camera's frame.
+	var tags: Array = []
+	var cam_pose: Array = []
+	if tag_camera != null:
+		for t in tag_camera.tags:
+			var c: Vector3 = t["cam_xyz"] / Config.IN
+			tags.append([t["id"], snappedf(t["tx"], 0.01), snappedf(t["ty"], 0.01), snappedf(t["ta"], 0.0001), snappedf(c.x, 0.01), snappedf(c.y, 0.01), snappedf(c.z, 0.01)])
+		for v in tag_camera.botpose:
+			cam_pose.append(snappedf(v, 0.0001))
 	return {
-		"ll": ll, "llpose": ll_pose,
+		"tags": tags, "campose": cam_pose,
 		"type": "state", "t": snappedf(match_time, 0.001), "start": _start, "stop": _stop, "motors": motors,
 		"imu": [snappedf(robot.get_pose_ftc().z, 0.001), snappedf(rad_to_deg(robot.omega), 0.01)],
 		"gamepad1": _gamepad(0, true), "gamepad2": _gamepad(1, false),

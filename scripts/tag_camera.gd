@@ -1,11 +1,12 @@
 extends Node
-## Simulated Limelight on the turret. No image processing: for every AprilTag on the field it works out
-## whether the camera could see it (field of view, range, the tag facing the camera) and, if so, the
-## angles a real Limelight would report: tx (positive = tag is to the right) and ty (positive = above).
+## Simulated AprilTag camera on the turret (the main Arducam). No image processing: for every AprilTag on
+## the field it works out whether the camera could see it (field of view, range, the tag facing the
+## camera) and, if so, where it is in the camera's own frame: x right, y straight out of the lens, z up.
+## tx / ty are the angles to the tag (positive = right / above).
 
 var robot
 var field
-## Latest detections: [{ id, tx, ty, ta, dist_m }], best (largest) first.
+## Latest detections: [{ id, tx, ty, ta, dist_m, cam_xyz }], best (largest) first.
 var tags: Array = []
 ## Robot pose from the tags, in FTC field coordinates: [x_m, y_m, heading_deg]; empty if no tag is in view.
 var botpose: Array = []
@@ -25,17 +26,17 @@ func _ready() -> void:
 	apply_config()
 
 func apply_config() -> void:
-	var a = Config.value("limelight.position_m", null)
+	var a = Config.value("camera.position_m", null)
 	if a is Array and a.size() == 3:
 		_pos = Vector3(a[0], a[1], a[2])
-	_pitch = deg_to_rad(Config.num("limelight.mount_pitch_deg", 25.0))
-	_hfov = Config.num("limelight.fov_horizontal_deg", 82.0)
-	_vfov = Config.num("limelight.fov_vertical_deg", 56.2)
-	_range = Config.inches("limelight.max_range_in", 144.0)
-	_max_view = Config.num("limelight.max_view_angle_deg", 75.0)
-	_tag_size = Config.inches("limelight.tag_size_in", 4.0)
-	_angle_noise = Config.num("limelight.angle_noise_deg", 0.0)
-	_pose_noise = Config.inches("limelight.pose_noise_in", 0.0)
+	_pitch = deg_to_rad(Config.num("camera.mount_pitch_deg", 25.0))
+	_hfov = Config.num("camera.fov_horizontal_deg", 82.0)
+	_vfov = Config.num("camera.fov_vertical_deg", 56.2)
+	_range = Config.inches("camera.max_range_in", 144.0)
+	_max_view = Config.num("camera.max_view_angle_deg", 75.0)
+	_tag_size = Config.inches("camera.tag_size_in", 4.0)
+	_angle_noise = Config.num("camera.angle_noise_deg", 0.0)
+	_pose_noise = Config.inches("camera.pose_noise_in", 0.0)
 
 ## Where the camera is and which way it looks, in world space: [position, forward, right, up].
 func camera_frame() -> Array:
@@ -63,7 +64,8 @@ func _physics_process(_dt: float) -> void:
 			continue
 		var image_area := 4.0 * tan(deg_to_rad(_hfov / 2.0)) * tan(deg_to_rad(_vfov / 2.0)) * dist * dist
 		found.append({"id": tag["id"], "tx": tx + _rng.randfn(0.0, _angle_noise), "ty": ty + _rng.randfn(0.0, _angle_noise),
-			"ta": 100.0 * _tag_size * _tag_size * facing / image_area, "dist_m": dist})
+			"ta": 100.0 * _tag_size * _tag_size * facing / image_area, "dist_m": dist,
+			"cam_xyz": Vector3(v.dot(cam[2]), f, v.dot(cam[3]))})
 	found.sort_custom(func(a, b): return a["ta"] > b["ta"])
 	tags = found
 	if found.is_empty():

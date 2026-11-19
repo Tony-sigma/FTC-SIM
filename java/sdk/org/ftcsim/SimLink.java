@@ -24,9 +24,9 @@ public class SimLink {
     private Map<String, Double> motorMaxTps = new HashMap<>();
     private List<String> servoNames = new ArrayList<>();
     private volatile boolean helloSeen = false;
-    private volatile List<double[]> llTags = new ArrayList<>();
-    private volatile double[] llPose = {0, 0, 0};
-    private volatile String limelightName = "limelight";
+    private volatile List<double[]> camTags = new ArrayList<>();
+    private volatile double[] camPose = {0, 0, 0};
+    private volatile String cameraName = "Webcam 1";
 
     private final Map<String, Double> motorsOut = new ConcurrentHashMap<>();
     private final Map<String, Double> servosOut = new ConcurrentHashMap<>();
@@ -66,7 +66,7 @@ public class SimLink {
                     List<String> servos = new ArrayList<>();
                     for (Object o : Json.list(m.get("servos"))) servos.add(String.valueOf(o));
                     motorMaxTps = max;
-                    if (m.get("limelight") != null) limelightName = String.valueOf(m.get("limelight"));
+                    if (m.get("camera") != null) cameraName = String.valueOf(m.get("camera"));
                     servoNames = servos;
                     helloSeen = true;
                 } else {
@@ -75,13 +75,17 @@ public class SimLink {
                     if (imu.size() >= 2) { yawDeg = Json.num(imu.get(0)); yawRateDeg = Json.num(imu.get(1)); }
                     simTime = Json.num(m.get("t"));
                     List<double[]> tags = new ArrayList<>();
-                    for (Object o : Json.list(m.get("ll"))) {
+                    for (Object o : Json.list(m.get("tags"))) {
                         List<Object> t = Json.list(o);
-                        if (t.size() >= 4) tags.add(new double[]{Json.num(t.get(0)), Json.num(t.get(1)), Json.num(t.get(2)), Json.num(t.get(3))});
+                        if (t.size() >= 7) {
+                            double[] row = new double[7];
+                            for (int k = 0; k < 7; k++) row[k] = Json.num(t.get(k));
+                            tags.add(row);
+                        }
                     }
-                    llTags = tags;
-                    List<Object> lp = Json.list(m.get("llpose"));
-                    if (lp.size() >= 3) llPose = new double[]{Json.num(lp.get(0)), Json.num(lp.get(1)), Json.num(lp.get(2))};
+                    camTags = tags;
+                    List<Object> cp = Json.list(m.get("campose"));
+                    if (cp.size() >= 3) camPose = new double[]{Json.num(cp.get(0)), Json.num(cp.get(1)), Json.num(cp.get(2))};
                     if (Json.bool(m.get("start"))) started = true;
                     if (Json.bool(m.get("stop"))) stopRequested = true;
                     fill(gamepad1, Json.object(m.get("gamepad1")));
@@ -165,11 +169,12 @@ public class SimLink {
     public double simTime() { return simTime; }
     public double yawDeg() { return yawDeg; }
     public double yawRateDeg() { return yawRateDeg; }
-    /** AprilTags in view, biggest first: {id, tx, ty, ta}. */
-    public List<double[]> limelightTags() { return llTags; }
-    /** Robot pose from the tags: {x m, y m, heading deg}. */
-    public double[] limelightPose() { return llPose; }
-    public String limelightName() { return limelightName; }
+    /** AprilTags the camera sees, biggest first: {id, tx, ty, area, x, y, z}; x/y/z in inches in the camera frame. */
+    public List<double[]> cameraTags() { return camTags; }
+    /** Robot pose worked out from the tags: {x m, y m, heading deg}. */
+    public double[] cameraRobotPose() { return camPose; }
+    public String cameraName() { return cameraName; }
+    public long packetCount() { synchronized (packetLock) { return packets; } }
     public Set<String> motorNames() { return motorMaxTps.keySet(); }
     public List<String> servoNames() { return servoNames; }
     public double motorMaxTicksPerSecond(String name) { Double v = motorMaxTps.get(name); return v == null || v <= 0 ? 2800.0 : v; }

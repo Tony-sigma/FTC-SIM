@@ -323,7 +323,7 @@ func _update_game_pieces(dt: float) -> void:
 				pollen.spawn_ball(global_position + out * (length / 2.0 + 0.09) + Vector3(0, 0.05, 0), velocity + out * 1.0, self)
 
 ## Where a ball leaves the shooter and how fast, right now: [position, velocity] in world space.
-## The shooter points along the turret's +X (the Limelight side), tilted up by the hood angle.
+## The shooter points along the turret's +X (the camera side), tilted up by the hood angle.
 func shot_state() -> Array:
 	var turret_basis := global_transform.basis * Basis(Vector3.UP, deg_to_rad(turret_deg))
 	var a := deg_to_rad(hood_deg)

@@ -1,8 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.hardware.limelightvision.LLResult;
-import com.qualcomm.hardware.limelightvision.LLResultTypes;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -10,7 +7,11 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.Servo;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 /**
  * Sample driver-controlled OpMode. It is ordinary FTC code: the same file runs on the Control Hub
@@ -20,7 +21,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
  *   Left trigger intake (both sides)     Right trigger shoot
  *   Right bumper spit pollen back out    Left bumper   slow mode
  *   D-pad left/right  turret             D-pad up/down hood
- *   Right stick click  turret auto-aim on/off (Limelight keeps the turret on the AprilTag it sees)
+ *   Right stick click  turret auto-aim on/off (the camera keeps the turret on our hive's AprilTag)
  *   A / B        front / back lever      Y  field-centric on/off     X  reset heading
  */
 @TeleOp(name = "Biobuzz TeleOp", group = "Biobuzz")
@@ -29,7 +30,8 @@ public class BiobuzzTeleOp extends OpMode {
     private DcMotor intakeA, intakeB, shooterLeft, shooterRight;
     private Servo turretServo, hoodServo, gateServo, leverLeft, leverRight;
     private IMU imu;
-    private Limelight3A limelight;
+    private VisionPortal visionPortal;
+    private AprilTagProcessor aprilTag;
 
     private double turret = 0.5, hood = 0.5;
     private boolean fieldCentric = true, leverFrontOut = false, leverBackOut = false;
@@ -70,9 +72,13 @@ public class BiobuzzTeleOp extends OpMode {
             RevHubOrientationOnRobot.LogoFacingDirection.UP, RevHubOrientationOnRobot.UsbFacingDirection.FORWARD)));
         imu.resetYaw();
 
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(0);   // pipeline 0 = AprilTags
-        limelight.start();
+        // The main camera on the shooter, looking for AprilTags.
+        // On the real robot an Arducam also needs .setLensIntrinsics(fx, fy, cx, cy) from its calibration.
+        aprilTag = new AprilTagProcessor.Builder().build();
+        visionPortal = new VisionPortal.Builder()
+            .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
+            .addProcessor(aprilTag)
+            .build();
 
         telemetry.addData("Status", "Ready. Press start.");
     }
@@ -114,22 +120,19 @@ public class BiobuzzTeleOp extends OpMode {
         // ---- turret, hood, levers ----
         if (gamepad1.right_stick_button && !lastStick) autoAim = !autoAim;
         lastStick = gamepad1.right_stick_button;
-        // Pick the biggest tag in view that belongs to our hive (the list is sorted biggest first).
-        LLResult result = limelight.getLatestResult();
-        LLResultTypes.FiducialResult tag = null;
-        if (result != null && result.isValid()) {
-            for (LLResultTypes.FiducialResult f : result.getFiducialResults()) {
-                if (tag == null && (f.getFiducialId() == OUR_TAGS[0] || f.getFiducialId() == OUR_TAGS[1])) tag = f;
-            }
+        // Pick a tag in view that belongs to our hive.
+        AprilTagDetection tag = null;
+        for (AprilTagDetection d : aprilTag.getDetections()) {
+            if (tag == null && d.metadata != null && (d.id == OUR_TAGS[0] || d.id == OUR_TAGS[1])) tag = d;
         }
         boolean seesTag = tag != null;
         if (gamepad1.dpad_left) { turret += 0.004; autoAim = false; }
         if (gamepad1.dpad_right) { turret -= 0.004; autoAim = false; }
         if (autoAim) {
             if (seesTag) {
-                // tx is how many degrees the tag is right of centre. One full servo travel = 360 degrees
-                // of turret, and a bigger servo position turns the turret left, so subtract a share of tx.
-                turret -= tag.getTargetXDegrees() / 360.0 * 0.2;
+                // bearing = how many degrees the camera must turn LEFT to face the tag. One full servo
+                // travel is 360 degrees of turret and a bigger position turns it left, so add a share of it.
+                turret += tag.ftcPose.bearing / 360.0 * 0.2;
             } else {
                 // Nothing in view: keep turning the turret until a tag shows up.
                 turret += sweep;
@@ -157,8 +160,13 @@ public class BiobuzzTeleOp extends OpMode {
         telemetry.addData("Heading", "%.1f deg", Math.toDegrees(heading));
         telemetry.addData("Turret / hood", "%.2f / %.2f", turret, hood);
         telemetry.addData("Auto-aim", autoAim ? "ON" : "off");
-        if (seesTag) telemetry.addData("Limelight", "tag %d  tx %.1f  ty %.1f", tag.getFiducialId(), tag.getTargetXDegrees(), tag.getTargetYDegrees());
-        else telemetry.addData("Limelight", "no tag");
+        if (seesTag) telemetry.addData("Camera", "tag %d  bearing %.1f  range %.0f in", tag.id, tag.ftcPose.bearing, tag.ftcPose.range);
+        else telemetry.addData("Camera", "no tag");
         telemetry.addData("Front left encoder", frontLeft.getCurrentPosition());
+    }
+
+    @Override
+    public void stop() {
+        visionPortal.close();
     }
 }

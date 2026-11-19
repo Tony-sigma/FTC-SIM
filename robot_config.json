@@ -133,10 +133,9 @@
     "back_deploy_sign": 1
   },
 
-  "limelight": {
-    "_note": "Limelight 4 on the turret, looking along the shooter. It does not process images: the sim works out which AprilTags are in view from where the robot and turret are. position_m is in the turret's frame (+x = shooting direction, +y up), measured from the CAD. mount_pitch_deg (camera tilted up 45 deg) is from the team. PLACEHOLDERS: the field of view (82 x 56.2 deg is my figure for the Limelight 4), max range and viewing angle, and tag_size_in.",
-    "name": "limelight",
-    "_position_note": "The main camera on the shooter in the new CAD ('Camera <1>'): 0.157 m ahead of the turret axis, 0.351 m above the floor. The chassis also carries a second camera (back right) and two Huskylens (back left, front right) as helpers; they are not simulated yet.",
+  "camera": {
+    "_note": "The main camera: an Arducam (USB webcam) on the shooter, looking where it shoots, read in code through the FTC VisionPortal + AprilTagProcessor. The sim does not process images: it works out which AprilTags are in view from where the robot and turret are. position_m is in the turret's frame (+x = shooting direction, +y up) and comes from the CAD ('Camera <1>' on the shooter); mount_pitch_deg (tilted up 45 deg) is from the team. PLACEHOLDERS: the field of view (depends on the Arducam model and lens), max range and viewing angle, and tag_size_in. The chassis also carries a second camera and two Huskylens as helpers; they are not simulated yet.",
+    "name": "Webcam 1",
     "position_m": [0.157, 0.351, 0.0],
     "mount_pitch_deg": 45.0,
     "fov_horizontal_deg": 82.0,
