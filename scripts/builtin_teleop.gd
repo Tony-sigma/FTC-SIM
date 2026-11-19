@@ -31,6 +31,7 @@ var _manual_power := 0.22
 const Ballistics := preload("res://scripts/ballistics.gd")
 var _plan := {}
 var _plan_age := 1.0
+var _min_descent := 30.0
 var _speed_tol := 0.04
 var _turret_manual_rate := 90.0
 
@@ -47,6 +48,7 @@ func apply_config() -> void:
 	_hood_rate = Config.num("driver.hood_nudge_per_s", 0.8)
 	_manual_power = Config.num("driver.manual_shooter_power", 0.22)
 	_speed_tol = Config.num("driver.shoot_speed_tolerance", 0.04)
+	_min_descent = Config.num("driver.auto_min_descent_deg", 30.0)
 	_turret_manual_rate = Config.num("driver.turret_manual_deg_per_s", 90.0)
 
 func gamepad_id() -> int:
@@ -125,7 +127,8 @@ func compute_shot(target: Vector3) -> Dictionary:
 	var d := flat.length()
 	var h := target.y - start.y
 	var lim: Vector2 = robot.hood_limits_deg()
-	var fallback := {"ok": false, "reason": "OUT OF RANGE", "hood_servo": inverse_lerp(lim.x, lim.y, clampf(45.0, lim.x, lim.y)), "power": 1.0}
+	# No shot possible: say why, and leave the hood where it is (no "hood_servo" in the answer).
+	var fallback := {"ok": false, "reason": "OUT OF RANGE", "power": _manual_power}
 	if shot_outward != Vector3.ZERO and d > 0.01:
 		var from_mouth := Vector3(-flat.x, 0, -flat.y).normalized()
 		if rad_to_deg(from_mouth.angle_to(shot_outward)) > _mouth_half_angle:
@@ -133,7 +136,6 @@ func compute_shot(target: Vector3) -> Dictionary:
 			return fallback
 	if rad_to_deg(atan2(h, d)) > 40.0:
 		fallback["reason"] = "TOO CLOSE - back away from the hive"
-		fallback["hood_servo"] = 1.0
 	else:
 		fallback["reason"] = "TOO FAR - drive closer"
 	var pollen = robot.pollen
@@ -144,12 +146,16 @@ func compute_shot(target: Vector3) -> Dictionary:
 	var height := func(power: float, deg: float) -> Array:
 		var st: Array = robot.shot_state_for(power, deg)
 		return Ballistics.height_at(st[0], st[1], st[2], d, rad, k_drag, k_area, lift_max)
-	var close_call := {}
+	# Try every hood angle. For each one, find the flywheel speed that reaches the cell, and note how
+	# steeply the ball is coming down when it gets there.
+	var best := {}        # least power among shots that arrive steeply enough
+	var steepest := {}    # the steepest arrival of all, used when none is steep enough
+	var steepest_descent := -INF
 	var deg := lim.y
 	while deg >= lim.x - 0.001:
-		# More power always carries the ball higher at the target's distance, so search the power in halves.
 		var top: Array = height.call(1.0, deg)
 		if top[2] and top[0] >= target.y:
+			# More power always carries the ball higher at the target's distance, so search the power in halves.
 			var lo := 0.02
 			var hi := 1.0
 			for i in 12:
@@ -160,17 +166,22 @@ func compute_shot(target: Vector3) -> Dictionary:
 				else:
 					lo = mid
 			var hit: Array = height.call(hi, deg)
-			var plan := {"ok": true, "reason": "auto", "hood_servo": inverse_lerp(lim.x, lim.y, deg), "power": hi}
-			# The ball must already be coming down when it reaches the mouth, or it bounces back out.
-			if hit[1] < 0.0:
-				return plan
-			if close_call.is_empty():
-				plan["ok"] = false
-				plan["reason"] = "TOO CLOSE - back away from the hive"
-				close_call = plan
+			var descent := rad_to_deg(atan2(-hit[1], maxf(hit[3], 0.001)))
+			var plan := {"ok": true, "reason": "auto", "hood_servo": inverse_lerp(lim.x, lim.y, deg), "power": hi, "descent_deg": descent}
+			if descent >= _min_descent and (best.is_empty() or hi < best["power"]):
+				best = plan
+			if descent > steepest_descent:
+				steepest_descent = descent
+				steepest = plan
 		deg -= 1.5
-	if not close_call.is_empty():
-		return close_call
+	if not best.is_empty():
+		return best
+	if not steepest.is_empty():
+		# Reachable, but the ball arrives too flat (or still rising): it would bounce back out.
+		if steepest_descent <= 0.0:
+			steepest["ok"] = false
+			steepest["reason"] = "TOO CLOSE - back away from the hive"
+		return steepest
 	return fallback
 
 func toggle_lever(front: bool) -> void:
@@ -201,7 +212,8 @@ func _physics_process(dt: float) -> void:
 				_plan = compute_shot(shot_target)
 				_plan_age = 0.0
 			var shot := _plan
-			robot.hood_servo = shot["hood_servo"]
+			if shot.has("hood_servo"):
+				robot.hood_servo = shot["hood_servo"]
 			_auto_power = shot["power"]
 			auto_shot_status = shot["reason"]
 		else:

@@ -21,7 +21,7 @@ static func air_accel(vel: Vector3, spin: Vector3, radius: float, k_drag: float,
 	return a
 
 ## Step a shot forward until it has travelled `dist` metres horizontally (or hits the floor / times out).
-## Returns [height at that distance, vertical speed there, reached: bool].
+## Returns [height at that distance, vertical speed there, reached: bool, horizontal speed there].
 static func height_at(start: Vector3, vel: Vector3, spin: Vector3, dist: float, radius: float, k_drag: float, k_area: float, lift_max: float) -> Array:
 	var p := start
 	var v := vel
@@ -35,9 +35,9 @@ static func height_at(start: Vector3, vel: Vector3, spin: Vector3, dist: float, 
 		if d2 >= dist:
 			var d1 := Vector2(p.x, p.z).distance_to(flat0)
 			var t := (dist - d1) / maxf(d2 - d1, 1e-6)
-			return [lerpf(p.y, p2.y, t), lerpf(v.y, v2.y, t), true]
+			return [lerpf(p.y, p2.y, t), lerpf(v.y, v2.y, t), true, Vector2(v2.x, v2.z).length()]
 		if p2.y < 0.0:
-			return [0.0, v2.y, false]
+			return [0.0, v2.y, false, 0.0]
 		p = p2
 		v = v2
-	return [p.y, v.y, false]
+	return [p.y, v.y, false, 0.0]

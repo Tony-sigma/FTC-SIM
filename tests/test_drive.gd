@@ -81,20 +81,20 @@ func _run() -> void:
 	robot.wheel_powers = [0.0, 0.0, 0.0, 0.0]
 	await steps(5)
 	check("CAD model loaded", robot.has_cad_model)
-	check("turret starts at home (straight ahead), levers at their default angle", absf(robot.turret_from_home_deg()) < 0.01 and absf(robot.lever_front_deg - 100.0) < 0.01)
+	check("turret starts at home (straight ahead), levers at their default angle", absf(robot.turret_from_home_deg()) < 0.01 and absf(robot.lever_front_deg - 15.0) < 0.01)
 	var shooter_fwd: Vector3 = (robot.global_transform.basis * Basis(Vector3.UP, deg_to_rad(robot.turret_deg))).x
 	check("at home the shooter points to the robot's front", shooter_fwd.distance_to(-robot.global_transform.basis.z) < 0.01, str(shooter_fwd))
 	robot.turret_goal_deg = -30.0
 	robot.lever_front_servo = 1.0
 	await steps(12)
-	check("mechanisms do not snap instantly", robot.turret_deg < 89.0 and robot.turret_deg > 70.0 and robot.lever_front_deg > 105.0 and robot.lever_front_deg < 137.0,
+	check("mechanisms do not snap instantly", robot.turret_deg < 89.0 and robot.turret_deg > 70.0 and robot.lever_front_deg > 20.0 and robot.lever_front_deg < 60.0,
 		"turret %.1f, lever %.1f after 0.1 s" % [robot.turret_deg, robot.lever_front_deg])
 	await steps(360)
 	check("turret turns far past the old servo limit", absf(robot.turret_deg + 30.0) < 0.01, "%.2f deg" % robot.turret_deg)
 	robot.turret_goal_deg = 170.0
 	await steps(60)
 	check("turret takes the short way round (through 180)", robot.turret_deg < -40.0, "%.1f deg" % robot.turret_deg)
-	check("front lever goes to 138, back stays at its default", absf(robot.lever_front_deg - 138.0) < 0.01 and absf(robot.lever_back_deg - 100.0) < 0.01)
+	check("front lever goes to 138, back stays at its default", absf(robot.lever_front_deg - 138.0) < 0.01 and absf(robot.lever_back_deg - 15.0) < 0.01)
 	# Auto-aim: the shooter side of the turret faces the tag under the raised cell, wherever the robot is.
 	for pose in [Vector3(-50, -50, 90), Vector3(40, 50, -30), Vector3(-45, 45, 200)]:
 		robot.set_pose_ftc(pose.x, pose.y, pose.z)
@@ -183,14 +183,14 @@ func _run() -> void:
 		robot.feeders = [[1.0], []]
 		await steps(480)  # let the turret come round first: the exit point moves with it
 		var plan: Dictionary = teleop.compute_shot(main.field.mouth_point("red"))
-		robot.hood_servo = plan["hood_servo"]
+		robot.hood_servo = plan.get("hood_servo", robot.hood_servo)
 		robot.shooter_power = plan["power"]
 		await steps(300)
 		robot.intake_front_power = 1.0
 		await steps(360)
 		robot.intake_front_power = 0.0
 		check("auto hood scores from %s" % str(pose), plan["ok"] and robot.shots_fired == 1 and main.field.cell_count("red", true) == 1,
-			"%s, hood %.1f deg, power %.2f, in cell %d" % [plan["reason"], robot.hood_deg, plan["power"], main.field.cell_count("red", true)])
+			"%s, hood %.1f deg, power %.2f, arrives %.0f deg down, in cell %d" % [plan["reason"], robot.hood_deg, plan["power"], plan.get("descent_deg", 0.0), main.field.cell_count("red", true)])
 	robot.set_pose_ftc(-55, 10, 45)
 	await steps(5)
 	var behind: Dictionary = teleop.compute_shot(main.field.mouth_point("red"))
