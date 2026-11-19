@@ -28,6 +28,7 @@ var _mouth_half_angle := 75.0
 var auto_shot_status := ""
 var _auto_power := 1.0
 var _manual_power := 0.22
+var _speed_tol := 0.04
 var _turret_manual_rate := 90.0
 
 func _ready() -> void:
@@ -42,6 +43,7 @@ func apply_config() -> void:
 	_turret_rate = Config.num("driver.turret_nudge_per_s", 0.6)
 	_hood_rate = Config.num("driver.hood_nudge_per_s", 0.8)
 	_manual_power = Config.num("driver.manual_shooter_power", 0.22)
+	_speed_tol = Config.num("driver.shoot_speed_tolerance", 0.04)
 	_turret_manual_rate = Config.num("driver.turret_manual_deg_per_s", 90.0)
 
 func gamepad_id() -> int:
@@ -193,7 +195,7 @@ func _physics_process(dt: float) -> void:
 		var reverse := Input.is_physical_key_pressed(KEY_B) or _pad_btn(JOY_BUTTON_RIGHT_SHOULDER) > 0.0
 		robot.shooter_power = _auto_power
 		# With the automatic hood, wait for the flywheel to reach the speed the shot needs.
-		var ready := auto_shot_status == "" or absf(robot.flywheel_fraction - robot.shooter_power) <= 0.02 * maxf(robot.shooter_power, 0.05)
+		var ready := auto_shot_status == "" or absf(robot.flywheel_fraction - robot.shooter_power) <= _speed_tol * maxf(robot.shooter_power, 0.05)
 		robot.gate_open = shoot and ready
 		var feed := -1.0 if reverse else maxf(intake, 1.0 if shoot else 0.0)
 		robot.intake_front_power = feed

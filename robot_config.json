@@ -43,7 +43,7 @@
     "feeder_capacity": 2,
     "total_capacity": 4,
     "preload": 4,
-    "feeder_transit_s": 0.5
+    "feeder_transit_s": 0.4
   },
 
   "shooter": {
@@ -57,10 +57,11 @@
     "flywheel_max_rpm": 6000.0,
     "flywheel_diameter_in": 4.0,
     "exit_speed_fraction": 0.8,
-    "spin_up_time_s": 0.6,
-    "speed_drop_per_shot": 0.25,
+    "spin_up_time_s": 0.4,
+    "_stream_note": "Rate of fire. speed_drop_per_shot is how much one pollen slows the flywheel: a 12.5 g pollen takes little energy from two spinning wheels, so about 5 percent (PLACEHOLDER, measure it with getVelocity). shot_interval_s is the shortest gap between two pollen through the wheels. feeder_transit_s (under intakes) is how fast the feeders bring the next one.",
+    "speed_drop_per_shot": 0.05,
     "min_speed_fraction_to_shoot": 0.05,
-    "shot_interval_s": 0.25,
+    "shot_interval_s": 0.15,
     "_hood_note": "MEASURED from cad/shooter_min.glb and cad/shooter_max.glb (2026-11). The shooter has two wheels: a 4 in flywheel and a 3 in top wheel carried by the hood, which swings around the flywheel axle. Pollen leaves through the gap between them, at right angles to the line joining the two wheel centres. That line is 22.7 deg above horizontal with the hood at its start and 43.8 deg at its end, so the shot leaves at 67.3 deg (start) down to 46.2 deg (end) above the floor. Assumes the shooter sits on the robot at the same tilt as in cad/Robot.glb; uncertainty about 2 deg. Servo 0 = flattest (hood at its end), servo 1 = steepest (hood at its start).",
     "hood_min_deg": 46.2,
     "hood_max_deg": 67.3,
@@ -167,6 +168,8 @@
     "alliance": "red",
     "auto_aim_default": true,
     "manual_shooter_power": 0.22,
+    "_tolerance_note": "With auto-aim, pollen are fed only while the flywheel is within this fraction of the speed the shot needs. Bigger = faster stream, less accurate.",
+    "shoot_speed_tolerance": 0.04,
     "turret_manual_deg_per_s": 90.0,
     "turret_nudge_per_s": 0.6,
     "hood_nudge_per_s": 0.8,
