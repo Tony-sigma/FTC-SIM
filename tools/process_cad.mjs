@@ -23,7 +23,7 @@ const TINY_PART_M = 0.012;      // parts smaller than this in every direction ar
 
 // Names as they appear at the top of the Onshape assembly.
 const GROUPS = {
-  chassis: [/^Chasis/, /^Support Arm/, /^Intake/, /^Feeder/],
+  chassis: [/^Chasis/, /^Support Arm/, /^Intake/, /^Feeder/, /^Torreta/],  // of the turret group, only its fixed base
   turret: [/^Torreta/],
   lever_front: [/^Patita </],
   lever_back: [/^Patita-Mirrored/],
@@ -34,6 +34,13 @@ const HOOD = /Placa lateral capucha|Hood thing|Placa para engranes|30T GT2-3 Pul
 const FLYWHEEL = /4in 35A Compliant|^Flywheel$|6 in chrro|spacer flywheel/i;
 // name -> { from: the group it is cut out of, keep: which parts, pivot: where its origin goes (turret frame) }
 const SUB_PIECES = { hood: { keep: (n) => HOOD.test(n) && !TOP_WHEEL.test(n) }, top_wheel: { keep: (n) => TOP_WHEEL.test(n) }, flywheel: { keep: (n) => FLYWHEEL.test(n) } };
+// Inside the CAD's turret group, the "Turret" sub-assembly is mostly the FIXED base (main plate, servo,
+// servo gear, guide bearings). Only these parts of it turn, together with the whole shooter on top.
+const TURRET_BASE_SUB = /^Turret </;
+const TURRET_BASE_TURNS = /Spur gear \(70 teeth\)|guia engrane de torreta|Placa superior torreta|Socket button head cap screw #10-32/i;
+const under = (node, re) => { for (let p = node.getParentNode(); p; p = p.getParentNode()) if (re.test(p.getName())) return true; return false; };
+// True for a part of the turret group that stays still, so it belongs with the chassis.
+const isFixedTurretBase = (node) => under(node, TURRET_BASE_SUB) && !TURRET_BASE_TURNS.test(node.getName());
 const isShooterMover = (n) => HOOD.test(n) || TOP_WHEEL.test(n) || FLYWHEEL.test(n);
 const FASTENER = /screw|nut\b|nut strip|spacer|washer|standoff|shim|collar|e-clip|retaining|bearing|zip ?tie/i;
 // Which end of the robot is "front": -1 = the CAD's -X end (plain "Intake"/"Patita"), +1 = the other.
@@ -154,7 +161,11 @@ for (const name of PIECE_NAMES) {
     const b = getBounds(node), size = Math.max(...b.max.map((v, i) => v - b.min[i]));
     const nm = node.getName();
     // The moving shooter parts are cut out of the turret and kept only in their own piece.
-    const wrongPiece = sub ? !sub.keep(nm) : (name === 'turret' && isShooterMover(nm));
+    const inTurretGroup = under(node, GROUPS.turret[0]);
+    const wrongPiece = sub ? (!sub.keep(nm) || isFixedTurretBase(node))
+      : name === 'turret' ? (isShooterMover(nm) || isFixedTurretBase(node))
+      : name === 'chassis' ? (inTurretGroup && !isFixedTurretBase(node))
+      : false;
     if (wrongPiece) { node.dispose(); return; }
     if (FASTENER.test(nm) || size < TINY_PART_M) { node.dispose(); dropped++; }
   };
