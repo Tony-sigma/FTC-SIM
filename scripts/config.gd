@@ -10,9 +10,20 @@ var loaded_from := ""
 func _ready() -> void:
 	load_config()
 
+## The folder the game's loose files live in: the project folder when run from the Godot editor, and
+## the folder holding the game when it is a built executable (on a Mac, the folder the .app sits in).
+func app_dir() -> String:
+	if OS.has_feature("editor"):
+		return ProjectSettings.globalize_path("res://").trim_suffix("/")
+	var dir := OS.get_executable_path().get_base_dir()
+	var marker := dir.find(".app/Contents/MacOS")
+	if marker >= 0:
+		dir = dir.substr(0, marker).get_base_dir()
+	return dir
+
 func load_config() -> bool:
-	# An exported build prefers a robot_config.json sitting next to the executable.
-	var candidates := [OS.get_executable_path().get_base_dir().path_join(FILE_NAME), "res://" + FILE_NAME]
+	# A robot_config.json next to the game wins, so the numbers can be edited without rebuilding it.
+	var candidates := [app_dir().path_join(FILE_NAME), "res://" + FILE_NAME]
 	for path in candidates:
 		if not FileAccess.file_exists(path):
 			continue

@@ -10,7 +10,7 @@ var _log_path := ""
 var _poll := 0.0
 
 func java_home() -> String:
-	return ProjectSettings.globalize_path("res://java")
+	return Config.app_dir().path_join("java")
 
 func teamcode_dir() -> String:
 	var d := str(Config.value("java.teamcode_dir", ""))

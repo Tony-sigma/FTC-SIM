@@ -22,6 +22,11 @@ var java_runner
 var tag_camera
 var _menu: Array = []   # OpModes offered in the Java menu; empty = menu closed
 var _menu_open := false
+## From the command line:  --opmode="Name"  launches that Java OpMode at startup, and  --start  presses
+## start for it as soon as it reaches INIT. Put them after  --  so Godot passes them on.
+var _auto_opmode := ""
+var _auto_start := false
+var _java_was_connected := false
 var _alliance := "red"
 ## Set by tests that drive the robot themselves, so the built-in TeleOp stays off.
 var _external_control := false
@@ -68,6 +73,13 @@ func _ready() -> void:
 	hud = HudScript.new()
 	add_child(hud)
 	_build_cameras()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--opmode="):
+			_auto_opmode = arg.trim_prefix("--opmode=")
+		elif arg == "--start":
+			_auto_start = true
+	if _auto_opmode != "":
+		java_runner.launch.call_deferred(_auto_opmode)
 
 func _build_world() -> void:
 	var env := Environment.new()
@@ -127,7 +139,7 @@ func _process(_dt: float) -> void:
 	var st = match_timer.state
 	var banner := ""
 	if st == S.AUTO:
-		banner = "Robot idle – no autonomous code yet (Phase 5)"
+		banner = "" if bridge.connected else "Robot idle – press R, then J to run a Java autonomous"
 	elif st == S.TRANSITION:
 		banner = "Pick up your gamepads"
 	elif st == S.ENDED:
@@ -177,6 +189,13 @@ func _process(_dt: float) -> void:
 
 func _physics_process(_dt: float) -> void:
 	# While a Java OpMode is connected it drives the robot; the built-in TeleOp steps aside.
+	if _auto_start and bridge.connected and bridge.phase == "init" and bridge.opmode != "":
+		_auto_start = false
+		_start_pressed()
+	if _java_was_connected and not bridge.connected:
+		# The OpMode ended (finished, crashed or was stopped): back to free practice.
+		match_timer.reset()
+	_java_was_connected = bridge.connected
 	if bridge.connected:
 		teleop.active = false
 		robot.enabled = match_timer.state != match_timer.State.ENDED
