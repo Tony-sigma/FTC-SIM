@@ -39,6 +39,28 @@ the gate and feeds them to the flywheel. (The gate is an assumption about the re
 
 With no match running you are in free practice (no clock).
 
+## Playing it as a game (no Godot needed)
+The sim can be built into a normal program for Windows, Mac and Linux. A build is a folder with the
+game, `robot_config.json` and the `java` folder; keep them together. Editing `robot_config.json`
+and pressing F5 still works, and so does J for Java OpModes.
+
+To make the builds yourself: open the project in Godot, **Project → Export**, install the export
+templates when it asks, pick Windows or macOS and press **Export Project**. Then copy
+`robot_config.json` and the `java` folder next to the exported game. From a terminal:
+```bash
+godot --headless --export-release "Windows" export/windows/BiobuzzSim.exe
+godot --headless --export-release "macOS" export/macos/BiobuzzSim.zip
+```
+A build is a snapshot: after `git pull` you need to export again to get the changes.
+
+Without building anything, this starts the sim directly, skipping the Godot editor:
+```bash
+godot --path .
+```
+
+Start options, after `--`: `--opmode="Biobuzz TeleOp"` launches that Java OpMode right away and
+`--start` presses start for it.
+
 ## Running your real Java code
 You need a **JDK 11 or newer** installed (https://adoptium.net). Then, in the running sim:
 
