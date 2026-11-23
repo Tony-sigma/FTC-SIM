@@ -166,7 +166,7 @@ public class BiobuzzTeleOp extends OpMode {
         telemetry.addData("Heading", "%.1f deg", Math.toDegrees(heading));
         telemetry.addData("Turret / hood", "%.2f / %.2f", turret, hood);
         telemetry.addData("Auto-aim", autoAim ? "ON" : "off");
-        if (seesTag) telemetry.addData("Camera", "%s  bearing %.1f  range %.0f in  %.0f%% seen", tag.metadata.name, tag.ftcPose.bearing, tag.ftcPose.range, tag.percentClusterFound);
+        if (seesTag) telemetry.addData("Camera", "%s  bearing %.1f  range %.0f in  %d%% seen", tag.metadata.name, tag.ftcPose.bearing, tag.ftcPose.range, tag.percentClusterFound);
         else telemetry.addData("Camera", "no scorable cell in view");
         telemetry.addData("Front left encoder", frontLeft.getCurrentPosition());
     }

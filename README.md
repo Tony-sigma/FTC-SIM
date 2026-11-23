@@ -50,7 +50,7 @@ You need a **JDK 11 or newer** installed (https://adoptium.net). Then, in the ru
 4. Press **R** (or Back) to stop it and get the built-in controls back.
 
 By default the TeamCode folder is `java/teamcode` in this project, which has two samples
-(`BiobuzzTeleOp`, `DriveSquareAuto`). To use your real code, set `java.teamcode_dir` in
+(`BiobuzzTeleOp`, `DriveSquareAuto`) and six test OpModes, one per mechanism (see below). To use your real code, set `java.teamcode_dir` in
 `robot_config.json` to your `TeamCode/src/main/java` folder. Nothing in your code changes: the sim
 provides stand-ins with the same names as the FTC SDK classes (`java/sdk`).
 
@@ -107,6 +107,22 @@ hive. The second camera on the chassis and the two Huskylens are not simulated.
 Placeholders in `robot_config.json`: the camera's field of view (82 x 56.2 degrees) and range.
 `angle_noise_deg` and `pose_noise_in` add jitter if you want the code tested against imperfect
 readings.
+
+## Test OpModes for the real robot
+In `java/teamcode/org/firstinspires/ftc/teamcode/`, each with its instructions at the top of the
+file. They are ordinary FTC code: try them in the sim (press J), then copy them to the robot.
+A device that is missing from the robot configuration is reported on the screen, not a crash.
+
+| OpMode | What it is for |
+|---|---|
+| Test 1: Drive Motors | One wheel at a time (X Y A B), to check ports, names and directions. Wheels off the ground! |
+| Test 2: Servos | Pick a servo, arm it, nudge it, read the position: finds the safe limits of the turret, hood, gate and levers. |
+| Test 3: Intakes | Each intake + feeder on its own trigger, with reverse. |
+| Test 4: Shooter | Flywheel at a power you step up slowly, showing each motor's rpm. Capped at 0.40. |
+| Test 5: Sensors | IMU heading and the encoders while you move the robot by hand. Nothing is powered. |
+| Test 6: Camera | Lists the AprilTag clusters in view with range, bearing, and whether the cell can be scored in. |
+
+`godot --headless -s tests/test_mechanism_opmodes.gd` runs all six in the sim.
 
 ## Changing robot numbers
 Everything lives in **`robot_config.json`**: dimensions, wheel size, motor RPM, track width,
@@ -199,6 +215,7 @@ counter-clockwise. Red wall is −x, blue wall is +x, audience is −y.
 ```bash
 godot --headless -s tests/test_drive.gd
 godot --headless -s tests/test_java.gd
+godot --headless -s tests/test_mechanism_opmodes.gd
 ```
 The second one compiles and runs the sample Java OpModes against the sim (needs a JDK).
 

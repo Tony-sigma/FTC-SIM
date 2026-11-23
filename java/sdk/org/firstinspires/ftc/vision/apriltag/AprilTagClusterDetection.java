@@ -6,10 +6,10 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
  * "BLUE AUDIENCE" or "BLUE SCORING"; metadata is never null for a cluster.
  */
 public class AprilTagClusterDetection extends AprilTagDetection {
-    /** How much of the cluster was seen, 0 to 100 (four tags: 25, 50, 75 or 100). */
-    public final double percentClusterFound;
+    /** How much of the cluster was seen, a whole number 0 to 100 (four tags: 25, 50, 75 or 100). */
+    public final int percentClusterFound;
     public final AprilTagMetadata metadata;
-    public AprilTagClusterDetection(double percentClusterFound, AprilTagMetadata metadata, AprilTagPoseFtc ftcPose, Pose3D robotPose, long time) {
+    public AprilTagClusterDetection(int percentClusterFound, AprilTagMetadata metadata, AprilTagPoseFtc ftcPose, Pose3D robotPose, long time) {
         super(ftcPose, robotPose, time);
         this.percentClusterFound = percentClusterFound; this.metadata = metadata;
     }

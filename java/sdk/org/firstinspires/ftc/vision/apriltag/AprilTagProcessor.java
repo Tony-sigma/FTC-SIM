@@ -65,7 +65,7 @@ public class AprilTagProcessor implements VisionProcessor {
             double bearing = Math.atan2(-x, y), elevation = Math.atan2(z, y);
             AprilTagPoseFtc pose = new AprilTagPoseFtc(x, y, z, 0, 0, angleUnit.fromDegrees(t[4]), range,
                 angleUnit.fromRadians(bearing), angleUnit.fromRadians(elevation));
-            out.add(new AprilTagClusterDetection(t[0], new AprilTagMetadata(-1, names.get(i), 3.27, DistanceUnit.INCH), pose, robotPose, now));
+            out.add(new AprilTagClusterDetection((int) Math.round(t[0]), new AprilTagMetadata(-1, names.get(i), 3.27, DistanceUnit.INCH), pose, robotPose, now));
         }
         return out;
     }
