@@ -5,7 +5,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
 /**
- * TEST: the two intake + feeder motors, one on each trigger.
+ * TEST: only the intakes and feeders. Each intake shares one motor with its feeder, so there are two
+ * motors, one on each trigger.
  *
  *   RIGHT TRIGGER  intakeA (front)   - the harder you squeeze, the faster
  *   LEFT TRIGGER   intakeB (back)
@@ -14,7 +15,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
  * Each one should pull pollen IN and carry it up towards the shooter. If one pushes pollen out, flip
  * its sign in REVERSED below (and reverse that motor in your real TeleOp).
  */
-@TeleOp(name = "Test 3: Intakes", group = "Tests")
+@TeleOp(name = "Test: Intake + Feeder", group = "Tests")
 public class TestIntakes extends OpMode {
     static final String[] NAMES = {"intakeA", "intakeB"};
     static final boolean[] REVERSED = {false, false};

@@ -17,7 +17,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
  * same directions in your real TeleOp). If the wrong wheel turns, the motor is in the wrong port or
  * has the wrong name in the configuration.
  */
-@TeleOp(name = "Test 1: Drive Motors", group = "Tests")
+@TeleOp(name = "Test: Drive Motors", group = "Tests")
 public class TestDriveMotors extends OpMode {
     static final String[] NAMES = {"frontLeft", "frontRight", "backLeft", "backRight"};
     static final DcMotorSimple.Direction[] DIRECTIONS = {

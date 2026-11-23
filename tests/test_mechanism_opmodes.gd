@@ -59,7 +59,7 @@ func _run() -> void:
 	var robot = main.robot
 	var bridge = main.bridge
 
-	check("Test 1 starts", await start("Test 1: Drive Motors"))
+	check("drive motor test starts", await start("Test: Drive Motors"))
 	key(KEY_3, true)   # X on the gamepad
 	await steps(40)
 	check("holding X runs only frontLeft, forwards", absf(robot.wheel_powers[0] - 0.3) < 0.01 and robot.wheel_powers[1] == 0.0 and robot.wheel_powers[2] == 0.0 and robot.wheel_powers[3] == 0.0, str(robot.wheel_powers))
@@ -73,7 +73,7 @@ func _run() -> void:
 	check("holding B runs only backRight, and its encoder shows", absf(robot.wheel_powers[3] - 0.3) < 0.01 and robot.wheel_powers[0] == 0.0 and bridge.telemetry.contains("backRight : RUNNING"), bridge.telemetry.strip_edges().replace("\n", " | "))
 	key(KEY_2, false)
 
-	check("Test 2 starts", await start("Test 2: Servos"))
+	check("any-servo test starts", await start("Test: Any Servo"))
 	var hood0: float = robot.hood_servo
 	var turret0: float = robot.turret_goal_deg
 	await steps(60)
@@ -91,7 +91,7 @@ func _run() -> void:
 	await tap(KEY_B)       # right bumper: +0.05
 	check("lever servo jumps by 0.05 on the bumper", absf(robot.lever_front_servo - 0.55) < 0.001, "%.3f" % robot.lever_front_servo)
 
-	check("Test 3 starts", await start("Test 3: Intakes"))
+	check("intake + feeder test starts", await start("Test: Intake + Feeder"))
 	key(KEY_SPACE, true)   # right trigger
 	await steps(40)
 	check("right trigger runs intakeA only", absf(robot.intake_front_power - 1.0) < 0.01 and robot.intake_back_power == 0.0)
@@ -105,7 +105,7 @@ func _run() -> void:
 	check("left trigger runs intakeB only", absf(robot.intake_back_power - 1.0) < 0.01 and robot.intake_front_power == 0.0)
 	key(KEY_SHIFT, false)
 
-	check("Test 4 starts", await start("Test 4: Shooter"))
+	check("shooter test starts", await start("Test: Shooter"))
 	await steps(60)
 	check("flywheel is off until A is pressed", robot.shooter_power == 0.0)
 	await tap(KEY_1)
@@ -117,15 +117,51 @@ func _run() -> void:
 	await tap(KEY_2)
 	check("B turns it off", robot.shooter_power == 0.0)
 
-	check("Test 5 starts", await start("Test 5: Sensors"))
+	check("sensor test starts", await start("Test: Sensors"))
 	robot.set_pose_ftc(-40, -45, 30)   # as if someone turned the robot 30 degrees left by hand
 	await steps(60)
 	check("heading follows the robot being turned by hand", bridge.telemetry.contains("Heading : 30.0 deg"), bridge.telemetry.strip_edges().replace("\n", " | "))
 
-	check("Test 6 starts", await start("Test 6: Camera"))
+	check("camera test starts", await start("Test: Camera"))
 	robot.aim_point = main.field.aim_point("red")
 	await steps(480)
 	check("camera test names the raised cell and says it can be scored in", bridge.telemetry.contains("RED AUDIENCE") and bridge.telemetry.contains("RAISED cell, can score") and bridge.telemetry.contains("% of its tags"), bridge.telemetry.strip_edges().replace("\n", " | "))
+
+	check("turret test starts", await start("Test: Turret"))
+	var home: float = robot.turret_goal_deg
+	var hood_before: float = robot.hood_servo
+	key(KEY_LEFT, true)
+	await steps(60)
+	key(KEY_LEFT, false)
+	check("turret does not move before it is armed", robot.turret_goal_deg == home)
+	await tap(KEY_1)   # A = arm
+	key(KEY_LEFT, true)
+	await steps(120)
+	key(KEY_LEFT, false)
+	await steps(20)
+	check("after arming, D-pad left turns the turret left and only the turret", wrapf(robot.turret_goal_deg - home, -180.0, 180.0) > 20.0 and robot.hood_servo == hood_before and bridge.telemetry.contains("deg from the middle"), "turned %.1f deg" % wrapf(robot.turret_goal_deg - home, -180.0, 180.0))
+
+	check("hood test starts", await start("Test: Hood"))
+	await tap(KEY_1)
+	await tap(KEY_B)   # right bumper: +0.05
+	key(KEY_DOWN, true)
+	await steps(60)
+	key(KEY_DOWN, false)
+	await steps(20)
+	check("hood moves with the bumper and the D-pad, flywheel stays off", robot.hood_servo > 0.42 and robot.hood_servo < 0.5 and robot.shooter_power == 0.0, "%.3f" % robot.hood_servo)
+
+	check("lever test starts", await start("Test: Levers"))
+	await tap(KEY_2)   # B = right lever
+	await tap(KEY_1)   # arm
+	await tap(KEY_B)   # +0.05
+	check("only the chosen (right) lever moves", absf(robot.lever_back_servo - 0.55) < 0.001 and robot.lever_front_servo == 0.0, "left %.3f right %.3f" % [robot.lever_front_servo, robot.lever_back_servo])
+	await tap(KEY_3)   # X = left lever
+	await tap(KEY_1)
+	key(KEY_UP, true)
+	await steps(120)
+	key(KEY_UP, false)
+	await steps(20)
+	check("then the left lever moves and the right one holds", robot.lever_front_servo > 0.6 and absf(robot.lever_back_servo - 0.55) < 0.001, "left %.3f right %.3f" % [robot.lever_front_servo, robot.lever_back_servo])
 
 	main.reset_all()
 	await steps(30)

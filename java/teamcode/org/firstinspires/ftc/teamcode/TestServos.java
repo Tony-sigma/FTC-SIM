@@ -19,7 +19,7 @@ import com.qualcomm.robotcore.hardware.Servo;
  * stop as soon as the mechanism reaches its end, and write down the number: never push past it, a
  * stalled servo burns out. Add or remove names in the list below to match your robot.
  */
-@TeleOp(name = "Test 2: Servos", group = "Tests")
+@TeleOp(name = "Test: Any Servo", group = "Tests")
 public class TestServos extends OpMode {
     static final String[] NAMES = {"turretServo", "hoodServo", "gateServo", "leverLeft", "leverRight"};
     static final double NUDGE_PER_LOOP = 0.002;

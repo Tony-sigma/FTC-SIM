@@ -21,7 +21,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
  * Odometry pods plugged into a goBILDA Pinpoint are read through the Pinpoint driver, not here; the
  * odoX / odoY lines only show up if pods are wired straight into motor encoder ports.
  */
-@TeleOp(name = "Test 5: Sensors", group = "Tests")
+@TeleOp(name = "Test: Sensors", group = "Tests")
 public class TestSensors extends OpMode {
     static final String[] ENCODERS = {"frontLeft", "frontRight", "backLeft", "backRight", "odoX", "odoY"};
 

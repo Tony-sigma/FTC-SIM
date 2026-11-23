@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 
 /**
- * TEST: the shooter flywheel. Start slow! These motors are fast: 0.20 is already a real shot.
+ * TEST: only the shooter flywheel (the hood has its own test). Start slow! These motors are fast: 0.20 is already a real shot.
  *
  *   D-pad UP / DOWN   raise / lower the power by 0.02 (it starts at 0.10)
  *   A                 flywheel ON
@@ -18,7 +18,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
  *   - watch how far the rpm dips when a pollen goes through (that tells us the real "speed drop").
  * Power is capped at MAX_POWER so a slip of the thumb cannot send it to full speed.
  */
-@TeleOp(name = "Test 4: Shooter", group = "Tests")
+@TeleOp(name = "Test: Shooter", group = "Tests")
 public class TestShooter extends OpMode {
     static final String[] NAMES = {"shooterLeft", "shooterRight"};
     static final boolean[] REVERSED = {false, false};

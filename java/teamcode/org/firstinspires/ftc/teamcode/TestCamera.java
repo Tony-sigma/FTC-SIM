@@ -21,7 +21,7 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
  * Use it to check the camera is found, that distances look right (measure one with a tape: if it is
  * off, the camera needs calibrating), and how far away the tags can still be read.
  */
-@TeleOp(name = "Test 6: Camera", group = "Tests")
+@TeleOp(name = "Test: Camera", group = "Tests")
 public class TestCamera extends OpMode {
     static final String CAMERA_NAME = "Webcam 1";
 
