@@ -169,7 +169,8 @@
     "_home_note": "Where the shooter points when the turret servo is centred (position 0.5), counter-clockwise from the robot's right side. 90 = straight ahead, which is how the new CAD is exported.",
     "home_deg": 90.0,
     "servo_range_deg": 300.0,
-    "servo_speed_deg_per_s": 400.0,
+    "_speed_note": "How fast the servo itself turns; the turret gets 15/70 of it. goBILDA dual mode servos on the hub's 5 V: Speed (25-3) about 545 deg/s = 117 deg/s at the turret; Torque (25-2) about 240 deg/s = 51 deg/s at the turret. At 6 V (servo power module): 667 and 300 deg/s. Set to the Speed servo, the one recommended for shooting on the move; put 240 here to try the Torque servo.",
+    "servo_speed_deg_per_s": 545.0,
     "servo_gear_teeth": 15,
     "turret_gear_teeth": 70,
     "pivot_m": [0.0, 0.0, 0.0]
