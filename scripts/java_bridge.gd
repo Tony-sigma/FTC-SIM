@@ -164,9 +164,10 @@ func _apply(msg: Dictionary) -> void:
 	for name in servos:
 		var pos := clampf(float(servos[name]), 0.0, 1.0)
 		if name == _turret:
-			# 0.5 = the turret's home direction (straight ahead); the full servo travel is one full turn.
+			# A Java OpMode drives the real servo: 0.5 = straight ahead, and the whole servo travel, through
+			# the gears, is turret_range_deg of turret (64 deg for a 300 deg servo on 15:70 gears).
 			robot.turret_servo = pos
-			robot.turret_goal_deg = wrapf(robot.turret_home_deg + (pos - 0.5) * 360.0, -180.0, 180.0)
+			robot.turret_goal_deg = wrapf(robot.turret_home_deg + (pos - 0.5) * robot.turret_range_deg(), -180.0, 180.0)
 		elif name == _hood:
 			robot.hood_servo = pos
 		elif name == _gate:

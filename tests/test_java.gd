@@ -71,7 +71,7 @@ func _run() -> void:
 	ok = await wait_for(func(): return bridge.phase == "run", 5.0)
 	check("TeleOp runs after start, built-in TeleOp is off", ok and not main.teleop.active)
 	await steps(120)
-	check("flywheel spins up from the OpMode's setPower", absf(robot.flywheel_fraction - 0.22) < 0.02, "%.2f" % robot.flywheel_fraction)
+	check("flywheel is held at the OpMode's 1400 rpm (RUN_USING_ENCODER)", absf(robot.flywheel_rpm() - 1400.0) < 30.0 and robot.velocity_hold, "%.0f rpm" % robot.flywheel_rpm())
 	key(KEY_W, true)
 	await steps(120)
 	key(KEY_W, false)
@@ -100,7 +100,16 @@ func _run() -> void:
 	key(KEY_1, false)
 	key(KEY_LEFT, false)
 	check("A button deploys a lever, D-pad turns the turret", robot.lever_front_deg > 130.0 and robot.turret_from_home_deg() > 5.0, "lever %.0f, turret %.1f" % [robot.lever_front_deg, robot.turret_from_home_deg()])
-	# Camera: the OpMode's own auto-aim finds our hive's tag and centres the turret on it.
+	check("the turret stops at the end of the real servo's travel (300 deg through 15:70 = 64 deg in all)", absf(robot.turret_from_home_deg() - robot.turret_range_deg() / 2.0) < 0.5, "turret %.1f" % robot.turret_from_home_deg())
+	key(KEY_1, true)
+	await steps(10)
+	key(KEY_1, false)
+	# Camera: the OpMode's own auto-aim finds our hive's tag and centres the turret on it. The robot has
+	# to face the hive roughly, as on the real field: the turret only covers 32 degrees each way.
+	robot.set_pose_ftc(34, -50, 145)
+	main.pollen.clear()
+	for i in 2:
+		robot.load_ball(i, "pollen")
 	key(KEY_T, true)
 	await steps(20)
 	key(KEY_T, false)
@@ -114,6 +123,15 @@ func _run() -> void:
 	check("Java auto-aim centres the turret on our hive's raised cell", ok, cam.summary())
 	check("the cell it locked onto is the raised one", main.field.hive_of("red")["up_side"] == "bottom" and cam.tags.size() > 0 and str(cam.tags[0]["name"]) == "RED AUDIENCE", cam.summary())
 	check("camera data shows up in telemetry", bridge.telemetry.contains("Auto-aim : ON") and bridge.telemetry.contains("Camera : RED AUDIENCE"), bridge.telemetry.strip_edges().replace("\n", " | "))
+	# With auto-aim on, the OpMode takes the hood and flywheel speed from its shot table.
+	await steps(120)
+	var fired0: int = robot.shots_fired
+	key(KEY_SPACE, true)
+	await steps(180)
+	key(KEY_SPACE, false)
+	await steps(240)
+	check("Java auto shot: hood and flywheel from the table put both pollen in the raised cell", robot.shots_fired == fired0 + 2 and main.field.cell_count("red", true) == 2,
+		"fired %d, in cell %d, hood %.1f deg, %.0f rpm | %s" % [robot.shots_fired - fired0, main.field.cell_count("red", true), robot.hood_deg, robot.flywheel_rpm(), bridge.telemetry.strip_edges().replace("\n", " | ")])
 	main.reset_all()
 	ok = await wait_for(func(): return not bridge.connected and not runner.is_running(), 5.0)
 	check("reset stops the OpMode and hands back to the built-in TeleOp", ok)

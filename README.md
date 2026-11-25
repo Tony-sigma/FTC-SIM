@@ -119,9 +119,19 @@ The sim does not process pictures: it works out from the robot and turret positi
 inside the camera's field of view, within range and facing it. The HUD line "Camera sees" shows the
 clusters in view right now.
 
-The sample `BiobuzzTeleOp` uses it the way the FTC tech tip describes: right-stick click (T on the
-keyboard) makes the turret search for a cluster whose name starts with our colour and whose roll
-is the right way up, then keeps it centred using `bearing`.
+`BiobuzzTeleOp` is the OpMode meant for the real robot. It uses the camera the way the FTC tech tip
+describes: right-stick click (T on the keyboard) makes the turret search for a cluster whose name
+starts with our colour and whose roll is the right way up, then keeps it centred using `bearing`.
+While it is locked on, the hood and the flywheel speed come from a table in the file (distance to the
+cell → hood, rpm), and the shot is held until the flywheel is at speed and the turret is on target.
+Everything that depends on how the robot is built (motor directions, servo end positions, turret
+travel, the shot table) is in one block of settings at the top, and a device that is not in the
+robot configuration is skipped and listed on the Driver Station instead of crashing.
+
+A Java OpMode gets the **real** turret: the servo's travel through the 15:70 gears
+(`turret.servo_range_deg` × 15/70 = 64° for a 300° servo), with end stops. Only the built-in keyboard
+driving has the free-spinning 360° turret. The shot table was generated from the sim, so on the real
+robot it is a starting point to tune.
 
 Differences from the real thing: `yaw` and `pitch` are always 0, lens calibration
 (`setLensIntrinsics`) is accepted but not needed, and tags are never hidden behind the frame or the

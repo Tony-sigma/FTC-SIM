@@ -139,7 +139,7 @@ func _run() -> void:
 	await steps(120)
 	key(KEY_LEFT, false)
 	await steps(20)
-	check("after arming, D-pad left turns the turret left and only the turret", wrapf(robot.turret_goal_deg - home, -180.0, 180.0) > 20.0 and robot.hood_servo == hood_before and bridge.telemetry.contains("deg from the middle"), "turned %.1f deg" % wrapf(robot.turret_goal_deg - home, -180.0, 180.0))
+	check("after arming, D-pad left turns the turret left and only the turret", wrapf(robot.turret_goal_deg - robot.turret_home_deg, -180.0, 180.0) > 10.0 and robot.hood_servo == hood_before and bridge.telemetry.contains("deg from the middle"), "turned %.1f deg" % wrapf(robot.turret_goal_deg - robot.turret_home_deg, -180.0, 180.0))
 
 	check("hood test starts", await start("Test: Hood"))
 	await tap(KEY_1)
