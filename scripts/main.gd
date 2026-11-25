@@ -212,7 +212,7 @@ func _physics_process(_dt: float) -> void:
 			teleop.active = true
 		robot.enabled = match_timer.driver_enabled()
 	if teleop.active:  # when something else drives the robot (tests, later the Java bridge) it sets the aim itself
-		robot.aim_point = field.aim_point(_alliance) if teleop.auto_aim else null
+		robot.aim_point = (field.aim_point(_alliance) + teleop.aim_lead) if teleop.auto_aim else null
 		teleop.shot_target = field.mouth_point(_alliance)
 		teleop.shot_outward = field.mouth_outward(_alliance)
 	field.update_flowers(robot, pollen, _dt)

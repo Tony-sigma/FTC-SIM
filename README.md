@@ -195,6 +195,13 @@ only the chassis box does.
 - **Flight:** a shot is slowed by air drag, and because the top wheel's surface runs faster than the
   flywheel's it leaves with topspin, which makes it dip. The green arc and the automatic hood use
   the same model. The spin and lift numbers are placeholders (`pollen._air_note`).
+- **Shooting on the move:** a ball keeps the robot's own speed when it leaves, so the auto-aim leads
+  the shot: the turret points ahead by (robot speed × flight time) and the hood and flywheel are
+  worked out as seen from the moving robot (`driver.lead_moving_shots`). Fire is held while the
+  turret is more than 3° from where it should point; the HUD then says TURRET CATCHING UP. That
+  happens when the robot passes close to the hive at speed, or turns faster than the turret can
+  (`turret.servo_speed_deg_per_s` through the 15:70 gears). `tests/test_moving_shot.gd` prints a
+  table of drive speed against shots scored.
 - **Feeders and shooter:** each intake motor also runs its feeder, carrying balls up to the shared
   neck. A ball at the neck waits there until the flywheel is spinning *and* its intake motor
   runs; then it goes through the wheels and out of the turret at the hood angle.
@@ -264,6 +271,7 @@ godot --headless -s tests/test_drive.gd
 godot --headless -s tests/test_java.gd
 godot --headless -s tests/test_mechanism_opmodes.gd
 godot --headless -s tests/test_nectar.gd
+godot --headless -s tests/test_moving_shot.gd
 ```
 The second one compiles and runs the sample Java OpModes against the sim (needs a JDK).
 

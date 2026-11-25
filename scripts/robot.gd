@@ -439,7 +439,8 @@ func _update_game_pieces(dt: float) -> void:
 ## wheel gives the ball topspin about the turret's sideways axis.
 ## `power_fraction` is the flywheel's speed (as a fraction of full speed) when the ball reaches it; the
 ## ball's own weight and squeeze slow the wheels a little on the way through (see shot_physics).
-func shot_state_for(power_fraction: float, hood_angle_deg: float, kind := "") -> Array:
+## With `with_robot_motion` false the ball's speed is given as seen from the (moving) robot.
+func shot_state_for(power_fraction: float, hood_angle_deg: float, kind := "", with_robot_motion := true) -> Array:
 	var turret_basis := global_transform.basis * Basis(Vector3.UP, deg_to_rad(turret_deg))
 	var a := deg_to_rad(hood_angle_deg)
 	var dir := (turret_basis.x * cos(a) + Vector3.UP * sin(a)).normalized()
@@ -447,7 +448,8 @@ func shot_state_for(power_fraction: float, hood_angle_deg: float, kind := "") ->
 		kind = next_kind()
 	var res := shot_physics(kind, power_fraction)
 	var speed: float = res["speed"]
-	return [global_position + turret_basis * _exit_offset, velocity + dir * speed, -turret_basis.z * (speed * _spin_rate(kind))]
+	var carried := velocity if with_robot_motion else Vector3.ZERO
+	return [global_position + turret_basis * _exit_offset, carried + dir * speed, -turret_basis.z * (speed * _spin_rate(kind))]
 
 func shot_state() -> Array:
 	return shot_state_for(flywheel_fraction, hood_deg)

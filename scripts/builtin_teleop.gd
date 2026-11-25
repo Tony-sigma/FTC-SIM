@@ -35,6 +35,12 @@ var _plan_kind := ""
 var _min_descent := 30.0
 var _speed_tol := 0.04
 var _turret_manual_rate := 90.0
+## Shooting on the move. A ball keeps the robot's own speed when it leaves, so a shot aimed straight at
+## the hive from a moving robot drifts off by (robot speed x flight time). With `lead_shots` on, the
+## turret aims where the hive "will be" as seen from the robot: `aim_lead` is how far the aim is moved.
+var lead_shots := true
+var aim_lead := Vector3.ZERO
+var _aim_tol := 3.0
 
 func _ready() -> void:
 	apply_config()
@@ -51,6 +57,8 @@ func apply_config() -> void:
 	_speed_tol = Config.num("driver.shoot_speed_tolerance", 0.04)
 	_min_descent = Config.num("driver.auto_min_descent_deg", 30.0)
 	_turret_manual_rate = Config.num("driver.turret_manual_deg_per_s", 90.0)
+	lead_shots = bool(Config.value("driver.lead_moving_shots", true))
+	_aim_tol = Config.num("driver.shoot_aim_tolerance_deg", 3.0)
 
 func gamepad_id() -> int:
 	var pads := Input.get_connected_joypads()
@@ -124,6 +132,14 @@ func _pad_axis(a: JoyAxis) -> float:
 ## flat and bouncing back out. Returns { ok, reason, hood_servo, power }.
 func compute_shot(target: Vector3) -> Dictionary:
 	var start: Vector3 = robot.shot_state()[0]
+	# On the move: work it out as the robot sees it. From a robot driving at v, the hive seems to come
+	# towards it at -v, so aim at where it will seem to be when the ball gets there.
+	var drift := Vector3(robot.velocity.x, 0, robot.velocity.z)
+	var leading := lead_shots and drift.length() > 0.02
+	aim_lead = Vector3.ZERO
+	if leading:
+		aim_lead = -drift * float(_plan.get("flight_s", 0.6))
+		target += aim_lead
 	var flat := Vector2(target.x - start.x, target.z - start.z)
 	var d := flat.length()
 	var h := target.y - start.y
@@ -147,7 +163,7 @@ func compute_shot(target: Vector3) -> Dictionary:
 	var k_area: float = ball.get("k_area", 0.0)
 	var lift_max: float = ball.get("lift_max", 0.0)
 	var height := func(power: float, deg: float) -> Array:
-		var st: Array = robot.shot_state_for(power, deg, kind)
+		var st: Array = robot.shot_state_for(power, deg, kind, not leading)
 		return Ballistics.height_at(st[0], st[1], st[2], d, rad, k_drag, k_area, lift_max)
 	# Try every hood angle. For each one, find the flywheel speed that reaches the cell, and note how
 	# steeply the ball is coming down when it gets there.
@@ -170,7 +186,7 @@ func compute_shot(target: Vector3) -> Dictionary:
 					lo = mid
 			var hit: Array = height.call(hi, deg)
 			var descent := rad_to_deg(atan2(-hit[1], maxf(hit[3], 0.001)))
-			var plan := {"ok": true, "reason": "auto", "hood_servo": inverse_lerp(lim.x, lim.y, deg), "power": hi, "descent_deg": descent}
+			var plan := {"ok": true, "reason": "auto", "hood_servo": inverse_lerp(lim.x, lim.y, deg), "power": hi, "descent_deg": descent, "flight_s": hit[4]}
 			if descent >= _min_descent and (best.is_empty() or hi < best["power"]):
 				best = plan
 			if descent > steepest_descent:
@@ -199,44 +215,57 @@ func _physics_process(dt: float) -> void:
 	if not active or robot == null:
 		return
 	if robot.enabled:
-		# Turret: moving it by hand switches auto-aim off; the auto-aim button switches it back on.
-		var turret_in := read_turret()
-		if turret_in != 0.0:
-			auto_aim = false
-		robot.turret_servo = clampf(robot.turret_servo + turret_in * _turret_rate * dt, 0.0, 1.0)
-		robot.turret_goal_deg = wrapf(robot.turret_goal_deg + turret_in * _turret_manual_rate * dt, -180.0, 180.0)
-		# Hood: set automatically while auto-aim is on, otherwise D-pad up/down or arrow keys.
-		_auto_power = _manual_power
-		auto_shot_status = ""
-		if auto_aim and shot_target != null:
-			# Working out a shot flies a few dozen trial arcs, so do it ten times a second, not every tick.
-			_plan_age += dt
-			if _plan.is_empty() or _plan_age >= 0.1 or _plan_kind != robot.next_kind():
-				_plan = compute_shot(shot_target)
-				_plan_kind = robot.next_kind()
-				_plan_age = 0.0
-			var shot := _plan
-			if shot.has("hood_servo"):
-				robot.hood_servo = shot["hood_servo"]
-			_auto_power = shot["power"]
-			auto_shot_status = shot["reason"]
-		else:
-			var hood := _key_axis(KEY_DOWN, KEY_UP) + _pad_btn(JOY_BUTTON_DPAD_UP) - _pad_btn(JOY_BUTTON_DPAD_DOWN)
-			robot.hood_servo = clampf(robot.hood_servo + hood * _hood_rate * dt, 0.0, 1.0)
-		# The flywheel runs all the time. Intake (Shift / left trigger) pulls pollen in on both sides
-		# with the gate shut; shoot (Space / right trigger) opens the gate and feeds them to the flywheel.
-		flywheel_on = true
+		var hood := _key_axis(KEY_DOWN, KEY_UP) + _pad_btn(JOY_BUTTON_DPAD_UP) - _pad_btn(JOY_BUTTON_DPAD_DOWN)
 		var intake := maxf(_pad_axis(JOY_AXIS_TRIGGER_LEFT), 1.0 if Input.is_physical_key_pressed(KEY_SHIFT) else 0.0)
 		var shoot := maxf(_pad_axis(JOY_AXIS_TRIGGER_RIGHT), 1.0 if Input.is_physical_key_pressed(KEY_SPACE) else 0.0) > 0.3
 		var reverse := Input.is_physical_key_pressed(KEY_B) or _pad_btn(JOY_BUTTON_RIGHT_SHOULDER) > 0.0
-		robot.shooter_power = _auto_power
-		# With the automatic hood, wait for the flywheel to reach the speed the shot needs.
-		var ready := auto_shot_status == "" or absf(robot.flywheel_fraction - robot.shooter_power) <= _speed_tol * maxf(robot.shooter_power, 0.05)
-		robot.gate_open = shoot and ready
-		var feed := -1.0 if reverse else maxf(intake, 1.0 if shoot else 0.0)
-		robot.intake_front_power = feed
-		robot.intake_back_power = feed
+		run_mechanisms(dt, read_turret(), hood, intake, shoot, reverse)
 	else:
 		flywheel_on = false
 	var in_ := read_sticks()
 	robot.wheel_powers = compute_powers(in_[0], in_[1], in_[2])
+
+## How far the turret still is from where it should point, in degrees.
+func turret_error_deg() -> float:
+	return absf(wrapf(robot.turret_goal_deg - robot.turret_deg, -180.0, 180.0))
+
+## Everything except the wheels: turret, hood, flywheel, feeders and gate, from the driver's inputs.
+func run_mechanisms(dt: float, turret_in: float, hood_in: float, intake: float, shoot: bool, reverse: bool) -> void:
+	# Turret: moving it by hand switches auto-aim off; the auto-aim button switches it back on.
+	if turret_in != 0.0:
+		auto_aim = false
+	robot.turret_servo = clampf(robot.turret_servo + turret_in * _turret_rate * dt, 0.0, 1.0)
+	robot.turret_goal_deg = wrapf(robot.turret_goal_deg + turret_in * _turret_manual_rate * dt, -180.0, 180.0)
+	# Hood: set automatically while auto-aim is on, otherwise D-pad up/down or arrow keys.
+	_auto_power = _manual_power
+	auto_shot_status = ""
+	if auto_aim and shot_target != null:
+		# Working out a shot flies a few dozen trial arcs, so do it ten times a second, not every tick
+		# (twenty when the robot is moving and the answer changes quickly).
+		_plan_age += dt
+		var every := 0.05 if robot.velocity.length() > 0.1 else 0.1
+		if _plan.is_empty() or _plan_age >= every or _plan_kind != robot.next_kind():
+			_plan = compute_shot(shot_target)
+			_plan_kind = robot.next_kind()
+			_plan_age = 0.0
+		var shot := _plan
+		if shot.has("hood_servo"):
+			robot.hood_servo = shot["hood_servo"]
+		_auto_power = shot["power"]
+		auto_shot_status = shot["reason"]
+	else:
+		aim_lead = Vector3.ZERO
+		robot.hood_servo = clampf(robot.hood_servo + hood_in * _hood_rate * dt, 0.0, 1.0)
+	# The flywheel runs all the time. Intake pulls balls in on both sides with the gate shut; shoot
+	# opens the gate and feeds them to the flywheel.
+	flywheel_on = true
+	robot.shooter_power = _auto_power
+	# With auto-aim, hold fire until the flywheel is at the speed the shot needs and the turret has
+	# caught up with where it should point (it falls behind when the robot moves or turns fast).
+	var ready := auto_shot_status == "" or (absf(robot.flywheel_fraction - robot.shooter_power) <= _speed_tol * maxf(robot.shooter_power, 0.05) and turret_error_deg() <= _aim_tol)
+	if auto_shot_status == "auto" and turret_error_deg() > _aim_tol:
+		auto_shot_status = "auto - TURRET CATCHING UP"
+	robot.gate_open = shoot and ready
+	var feed := -1.0 if reverse else maxf(intake, 1.0 if shoot else 0.0)
+	robot.intake_front_power = feed
+	robot.intake_back_power = feed
