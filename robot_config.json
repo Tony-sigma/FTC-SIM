@@ -222,6 +222,19 @@
     "command": "java"
   },
 
+  "realism": {
+    "_note": "Real-world imperfections, so the sim is not kinder than the robot. ALL of these are GUESSES at typical FTC values: measure your robot and change them. Set enabled to false for a perfect robot. shot scatter = how much one shot differs from the next (spread of speed in percent, of direction in degrees). turret_delay_s = how late the servo starts to follow a command; turret_backlash_deg = play in the 15:70 gears. speed_* = how the robot knows its own speed for shooting on the move (odometry): late, a few percent long or short, and noisy. pose_error_in = how far off the robot's idea of its place on the field is.",
+    "enabled": true,
+    "shot_speed_scatter_percent": 2.0,
+    "shot_angle_scatter_deg": 1.0,
+    "turret_delay_s": 0.05,
+    "turret_backlash_deg": 1.0,
+    "speed_delay_s": 0.05,
+    "speed_scale_error_percent": 3.0,
+    "speed_noise_in_per_s": 2.0,
+    "pose_error_in": 1.5
+  },
+
   "driver": {
     "alliance": "red",
     "auto_aim_default": true,

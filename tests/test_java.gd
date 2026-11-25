@@ -34,6 +34,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var main = load("res://scenes/main.tscn").instantiate()
+	root.get_node("Config").realism_scale = 0.0   # exact, repeatable physics
 	root.add_child(main)
 	await steps(5)
 	var robot = main.robot

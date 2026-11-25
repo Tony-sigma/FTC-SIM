@@ -41,6 +41,12 @@ var _turret_manual_rate := 90.0
 var lead_shots := true
 var aim_lead := Vector3.ZERO
 var _aim_tol := 3.0
+## What the robot "believes" (real-world imperfections, see the realism section of the config): its speed
+## comes from the odometry a moment late, a few percent off and noisy, and its idea of where it is on
+## the field is off by an inch or two.
+var _velocity_log: Array = []
+var _speed_scale_error := 0.0
+var _pose_error := Vector3.ZERO
 
 func _ready() -> void:
 	apply_config()
@@ -71,6 +77,7 @@ func gamepad_name() -> String:
 ## Kept for older callers; player's-view driving follows the camera and needs no reset.
 func reset_field_heading() -> void:
 	heading_offset = robot.rotation.y
+	reset_sensor_errors()
 
 func _dz(v: float) -> float:
 	if absf(v) < _deadzone:
@@ -134,7 +141,8 @@ func compute_shot(target: Vector3) -> Dictionary:
 	var start: Vector3 = robot.shot_state()[0]
 	# On the move: work it out as the robot sees it. From a robot driving at v, the hive seems to come
 	# towards it at -v, so aim at where it will seem to be when the ball gets there.
-	var drift := Vector3(robot.velocity.x, 0, robot.velocity.z)
+	var drift := measured_velocity()
+	target += _pose_error
 	var leading := lead_shots and drift.length() > 0.02
 	aim_lead = Vector3.ZERO
 	if leading:
@@ -225,12 +233,32 @@ func _physics_process(dt: float) -> void:
 	var in_ := read_sticks()
 	robot.wheel_powers = compute_powers(in_[0], in_[1], in_[2])
 
+## Draw new sensor errors (called at reset): odometry that reads a few percent long or short, and a
+## position on the field that is a little off.
+func reset_sensor_errors() -> void:
+	_velocity_log.clear()
+	_speed_scale_error = Config.jitter(Config.real("speed_scale_error_percent", 0.0) / 100.0)
+	var pose := Config.real("pose_error_in", 0.0) * Config.IN
+	_pose_error = Vector3(Config.jitter(pose), 0, Config.jitter(pose))
+
+## The robot's speed over the floor as its sensors report it.
+func measured_velocity() -> Vector3:
+	var v := Vector3(robot.velocity.x, 0, robot.velocity.z)
+	var delay := Config.real("speed_delay_s", 0.0)
+	if delay > 0.0 and not _velocity_log.is_empty():
+		v = _velocity_log[maxi(_velocity_log.size() - 1 - int(round(delay * 60.0)), 0)]
+	var noise := Config.real("speed_noise_in_per_s", 0.0) * Config.IN
+	return v * (1.0 + _speed_scale_error) + Vector3(Config.jitter(noise), 0, Config.jitter(noise))
+
 ## How far the turret still is from where it should point, in degrees.
 func turret_error_deg() -> float:
 	return absf(wrapf(robot.turret_goal_deg - robot.turret_deg, -180.0, 180.0))
 
 ## Everything except the wheels: turret, hood, flywheel, feeders and gate, from the driver's inputs.
 func run_mechanisms(dt: float, turret_in: float, hood_in: float, intake: float, shoot: bool, reverse: bool) -> void:
+	_velocity_log.append(Vector3(robot.velocity.x, 0, robot.velocity.z))
+	if _velocity_log.size() > 60:
+		_velocity_log.pop_front()
 	# Turret: moving it by hand switches auto-aim off; the auto-aim button switches it back on.
 	if turret_in != 0.0:
 		auto_aim = false

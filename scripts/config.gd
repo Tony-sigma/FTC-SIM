@@ -6,6 +6,10 @@ const FILE_NAME := "robot_config.json"
 
 var data: Dictionary = {}
 var loaded_from := ""
+## Real-world imperfections (the "realism" section). Tests set this to 0 for exact, repeatable physics.
+var realism_scale := 1.0
+## One shared source of randomness, so a run can be repeated by setting rng.seed.
+var rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	load_config()
@@ -50,6 +54,16 @@ func value(path: String, default = null):
 func num(path: String, default: float) -> float:
 	var v = value(path, default)
 	return float(v) if (v is float or v is int) else default
+
+## One of the real-world imperfections under "realism" (0 when they are switched off).
+func real(key: String, default: float) -> float:
+	if realism_scale <= 0.0 or not bool(value("realism.enabled", true)):
+		return 0.0
+	return num("realism." + key, default) * realism_scale
+
+## A random number from a bell curve around 0 with the given spread (0 gives exactly 0).
+func jitter(spread: float) -> float:
+	return rng.randfn(0.0, spread) if spread > 0.0 else 0.0
 
 ## A length stored in inches, returned in metres.
 func inches(path: String, default_in: float) -> float:

@@ -92,6 +92,8 @@ var _slip_factor := 2.0
 var _spin_fraction := 0.6
 var _jam_timer := 0.0
 var _push_cache: Dictionary = {}
+var _turret_drive_deg := 90.0   # where the servo's gear is; the turret trails it by the gear play
+var _turret_goals: Array = []   # recent turret commands, for the servo's reaction delay
 var _min_shoot := 0.2
 var _shot_interval := 0.25
 var _hood_min := 30.0
@@ -215,6 +217,8 @@ func reset_pose() -> void:
 	turret_servo = 0.5
 	turret_goal_deg = turret_home_deg
 	turret_deg = turret_home_deg
+	_turret_drive_deg = turret_home_deg
+	_turret_goals.clear()
 	lever_front_servo = 0.0
 	lever_back_servo = 0.0
 	intake_front_power = 0.0
@@ -270,12 +274,9 @@ func _update_mechanisms(dt: float) -> void:
 			var v: Vector3 = global_transform.basis.inverse() * (aim_point - global_position)
 			goal = rad_to_deg(atan2(-v.z, v.x))
 			turret_goal_deg = goal
-		# Take the short way round.
-		var diff := wrapf(goal - turret_deg, -180.0, 180.0)
-		turret_deg = wrapf(turret_deg + clampf(diff, -_turret_speed * dt, _turret_speed * dt), -180.0, 180.0)
+		_drive_turret(goal, dt, true)
 	else:
-		var turret_goal := turret_home_deg + (clampf(turret_servo, 0.0, 1.0) - 0.5) * _turret_range_deg
-		turret_deg = move_toward(turret_deg, turret_goal, _turret_speed * dt)
+		_drive_turret(turret_home_deg + (clampf(turret_servo, 0.0, 1.0) - 0.5) * _turret_range_deg, dt, false)
 	lever_front_deg = move_toward(lever_front_deg, lerpf(_lever_stowed, _lever_deployed, clampf(lever_front_servo, 0.0, 1.0)), _lever_speed * dt)
 	lever_back_deg = move_toward(lever_back_deg, lerpf(_lever_stowed, _lever_deployed, clampf(lever_back_servo, 0.0, 1.0)), _lever_speed * dt)
 	if _turret_node:
@@ -293,6 +294,31 @@ func _update_mechanisms(dt: float) -> void:
 		# The models are exported folded out by cad_pose_deg, so turn them back by that much.
 		_lever_nodes[0].rotation.x = deg_to_rad(lever_front_deg - _lever_cad_deg) * _lever_signs[0]
 		_lever_nodes[1].rotation.x = deg_to_rad(lever_back_deg - _lever_cad_deg) * _lever_signs[1]
+
+## The servo turns its gear towards `goal` at its top speed. Real-world imperfections: the servo reacts a
+## moment late (realism.turret_delay_s), and the gears have some play (realism.turret_backlash_deg), so
+## the turret only follows once the servo has taken up the slack.
+func _drive_turret(goal: float, dt: float, wraps: bool) -> void:
+	var delay := Config.real("turret_delay_s", 0.0)
+	if delay > 0.0:
+		_turret_goals.append(goal)
+		var keep := int(round(delay / dt)) + 1
+		while _turret_goals.size() > keep:
+			_turret_goals.pop_front()
+		goal = _turret_goals[0]
+	else:
+		_turret_goals.clear()
+	if wraps:
+		var diff := wrapf(goal - _turret_drive_deg, -180.0, 180.0)   # the short way round
+		_turret_drive_deg = wrapf(_turret_drive_deg + clampf(diff, -_turret_speed * dt, _turret_speed * dt), -180.0, 180.0)
+	else:
+		_turret_drive_deg = move_toward(_turret_drive_deg, goal, _turret_speed * dt)
+	var slack := Config.real("turret_backlash_deg", 0.0) / 2.0
+	var lag := wrapf(_turret_drive_deg - turret_deg, -180.0, 180.0) if wraps else _turret_drive_deg - turret_deg
+	if absf(lag) > slack:
+		turret_deg += lag - signf(lag) * slack
+		if wraps:
+			turret_deg = wrapf(turret_deg, -180.0, 180.0)
 
 ## Load the robot with its starting pollen, split between the two feeders.
 func preload_pollen() -> void:
@@ -544,6 +570,16 @@ func _launch(kind: String, res: Dictionary) -> void:
 	_shot_cooldown = _shot_interval
 	shots_fired += 1
 	var st := shot_state_for(flywheel_fraction, hood_deg, kind)
+	# No two real shots are the same: a little faster or slower, a little off to one side or up or down.
+	var speed_spread := Config.real("shot_speed_scatter_percent", 0.0) / 100.0
+	var angle_spread := deg_to_rad(Config.real("shot_angle_scatter_deg", 0.0))
+	if speed_spread > 0.0 or angle_spread > 0.0:
+		var rel: Vector3 = st[1] - velocity
+		var side := rel.cross(Vector3.UP).normalized()
+		rel = rel.rotated(Vector3.UP, Config.jitter(angle_spread))
+		if side.length() > 0.5:
+			rel = rel.rotated(side, Config.jitter(angle_spread))
+		st[1] = velocity + rel * (1.0 + Config.jitter(speed_spread))
 	last_shot = {"kind": kind, "speed": res["speed"], "rpm_before": flywheel_rpm(), "rpm_after": float(res["after"]) * flywheel_max_rpm}
 	flywheel_fraction = res["after"]
 	if pollen != null:

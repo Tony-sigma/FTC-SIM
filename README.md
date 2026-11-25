@@ -212,6 +212,14 @@ only the chassis box does.
   happens when the robot passes close to the hive at speed, or turns faster than the turret can
   (`turret.servo_speed_deg_per_s` through the 15:70 gears). `tests/test_moving_shot.gd` prints a
   table of drive speed against shots scored.
+- **Real-world imperfections:** so the sim is not kinder than the robot, the `realism` section of
+  `robot_config.json` adds shot-to-shot scatter (speed and direction), a turret servo that reacts
+  late and has play in its gears, and, for shooting on the move, a speed reading that is late, a few
+  percent off and noisy, plus a small error in where the robot thinks it is. All the values are
+  guesses at typical FTC numbers: measure and change them, or set `enabled` to false for a perfect
+  robot. The self-tests switch them off, except part 2 of `tests/test_moving_shot.gd`, which reports
+  the share of moving shots that score with them on (options: `-- --passes=5 --turret=51 --scale=2`).
+  Run the test files one at a time: every running sim listens on the same port for Java OpModes.
 - **Feeders and shooter:** each intake motor also runs its feeder, carrying balls up to the shared
   neck. A ball at the neck waits there until the flywheel is spinning *and* its intake motor
   runs; then it goes through the wheels and out of the turret at the hood angle.
