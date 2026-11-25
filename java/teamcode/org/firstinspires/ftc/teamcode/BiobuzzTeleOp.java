@@ -61,6 +61,12 @@ public class BiobuzzTeleOp extends OpMode {
         intakeB = hardwareMap.get(DcMotor.class, "intakeB");
         shooterLeft = hardwareMap.get(DcMotor.class, "shooterLeft");
         shooterRight = hardwareMap.get(DcMotor.class, "shooterRight");
+        // RUN_USING_ENCODER makes the hub HOLD the flywheel speed: every ball slows the wheels a little
+        // (a nectar much more than a pollen) and the hub then pushes at full voltage to get back up to
+        // speed. With plain power a stream of shots gets weaker and weaker. Both shooter motors need
+        // their encoder cables plugged in for this.
+        shooterLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         turretServo = hardwareMap.get(Servo.class, "turretServo");
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");

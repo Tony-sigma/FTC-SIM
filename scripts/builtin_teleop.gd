@@ -31,6 +31,7 @@ var _manual_power := 0.22
 const Ballistics := preload("res://scripts/ballistics.gd")
 var _plan := {}
 var _plan_age := 1.0
+var _plan_kind := ""
 var _min_descent := 30.0
 var _speed_tol := 0.04
 var _turret_manual_rate := 90.0
@@ -138,13 +139,15 @@ func compute_shot(target: Vector3) -> Dictionary:
 		fallback["reason"] = "TOO CLOSE - back away from the hive"
 	else:
 		fallback["reason"] = "TOO FAR - drive closer"
-	var pollen = robot.pollen
-	var rad: float = pollen.radius if pollen != null else 0.036
-	var k_drag: float = pollen.k_drag if pollen != null else 0.0
-	var k_area: float = pollen.k_area if pollen != null else 0.0
-	var lift_max: float = pollen.lift_max if pollen != null else 0.0
+	# Aim for the ball that is next in line: a nectar is heavier, slows the wheels more and flies further.
+	var kind: String = robot.next_kind()
+	var ball: Dictionary = robot.pollen.props(kind) if robot.pollen != null else {}
+	var rad: float = ball.get("radius", 0.036)
+	var k_drag: float = ball.get("k_drag", 0.0)
+	var k_area: float = ball.get("k_area", 0.0)
+	var lift_max: float = ball.get("lift_max", 0.0)
 	var height := func(power: float, deg: float) -> Array:
-		var st: Array = robot.shot_state_for(power, deg)
+		var st: Array = robot.shot_state_for(power, deg, kind)
 		return Ballistics.height_at(st[0], st[1], st[2], d, rad, k_drag, k_area, lift_max)
 	# Try every hood angle. For each one, find the flywheel speed that reaches the cell, and note how
 	# steeply the ball is coming down when it gets there.
@@ -208,8 +211,9 @@ func _physics_process(dt: float) -> void:
 		if auto_aim and shot_target != null:
 			# Working out a shot flies a few dozen trial arcs, so do it ten times a second, not every tick.
 			_plan_age += dt
-			if _plan.is_empty() or _plan_age >= 0.1:
+			if _plan.is_empty() or _plan_age >= 0.1 or _plan_kind != robot.next_kind():
 				_plan = compute_shot(shot_target)
+				_plan_kind = robot.next_kind()
 				_plan_age = 0.0
 			var shot := _plan
 			if shot.has("hood_servo"):

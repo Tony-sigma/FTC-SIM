@@ -30,6 +30,7 @@ public class SimMotor implements DcMotorEx {
             out = Math.max(-limit, Math.min(limit, error * positionP));
         } else out = power;
         link.setMotor(name, sign() * out);
+        link.setMotorHeld(name, mode == RunMode.RUN_USING_ENCODER);
     }
     synchronized void forceStop() { power = 0; }
 
@@ -58,6 +59,7 @@ public class SimMotor implements DcMotorEx {
     @Override public synchronized void setMotorEnable() { enabled = true; refresh(); }
     @Override public synchronized void setMotorDisable() { enabled = false; refresh(); }
     @Override public boolean isMotorEnabled() { return enabled; }
+    /** As on the real hub, setVelocity only does anything useful in RUN_USING_ENCODER, where the hub holds the speed. */
     @Override public void setVelocity(double ticksPerSecond) { setPower(ticksPerSecond / link.motorMaxTicksPerSecond(name)); }
     @Override public void setVelocity(double angularRate, AngleUnit unit) { setVelocity(angularRate); }
     @Override public double getVelocity() { return sign() * link.motorTicksPerSecond(name); }

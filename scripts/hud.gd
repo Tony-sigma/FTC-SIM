@@ -63,7 +63,7 @@ func _ready() -> void:
 	_help_label.modulate = Color(1, 1, 1, 0.8)
 	_help_label.text = "\n".join([
 		"GAMEPAD: left stick drive/strafe · right stick turn · LT intake · RT shoot · RB (hold) spit out · LB slow · RS click auto-aim · D-pad turret/hood by hand · A/B levers · Y player-view / robot-centric drive · Start match · Back reset",
-		"KEYS: WASD drive · Q/E turn · Shift intake · Space shoot · B (hold) spit out · Ctrl slow · T auto-aim · Z/X turret, ↑/↓ hood by hand · 1/2 levers · F player-view / robot-centric drive · Enter match · M full match · R reset · C camera · J run Java OpMode · F1 hide help",
+		"KEYS: WASD drive · Q/E turn · Shift intake · Space shoot · B (hold) spit out · Ctrl slow · T auto-aim · Z/X turret, ↑/↓ hood by hand · 1/2 levers · F player-view / robot-centric drive · Enter match · M full match · R reset · N bring in a nectar · C camera · J run Java OpMode · F1 hide help",
 	])
 
 func _label(parent: Node, font_size: int, align: HorizontalAlignment) -> Label:
@@ -98,11 +98,14 @@ func update_hud(d: Dictionary) -> void:
 		"Drive: %s" % ("Java OpMode" if d.java_driving else ("%s%s" % ["PLAYER VIEW (W = away from you)" if d.field_centric else "ROBOT-centric (W = robot's front)", "  (SLOW)" if d.slow else ""])),
 		"Pose:  x %6.1f in   y %6.1f in   heading %6.1f°" % [pose.x, pose.y, pose.z],
 		"Speed: %4.1f in/s  (max %.1f)" % [d.speed_in, d.max_speed_in],
-		"Pollen held: front %d  back %d%s" % [d.held_front, d.held_back, "   FULL" if d.full else ""],
-		"Hive cells: %s" % d.hive,
-		"Scored: %s" % d.score,
+		"Holding: front %d  back %d%s%s%s" % [d.held_front, d.held_back, ("  (%d nectar)" % d.held_nectar) if d.held_nectar > 0 else "",
+			("   next shot: %s" % ("NECTAR" if d.next_kind.begins_with("nectar") else "pollen")) if d.next_kind != "" else "", "   FULL" if d.full else ""],
+		"Raised hive cells: %s" % d.hive,
+		"Points: %s" % d.score,
+		"Nectar: %s" % d.nectar,
 		"Shooter: %4.0f rpm   hood %2.0f°%s" % [d.flywheel_rpm, d.hood_deg,
 			("  (%s)" % d.auto_shot) if d.auto_shot != "" else ""],
+		d.jam if d.jam != "" else ("Last shot: %s at %.1f m/s, flywheel dipped %.0f -> %.0f rpm" % ["nectar" if str(d.last_shot["kind"]).begins_with("nectar") else "pollen", d.last_shot["speed"], d.last_shot["rpm_before"], d.last_shot["rpm_after"]] if not d.last_shot.is_empty() else "Last shot: -"),
 		"Turret: %+6.1f°  %s   %s" % [d.turret_deg, "360°" if d.turret_continuous else "limit ±%.1f°" % d.turret_half_range,
 			("AUTO-AIM at %s hive tag" % d.alliance) if d.auto_aim else "manual"],
 		"Camera sees: %s" % d.camera_sees,

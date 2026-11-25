@@ -151,6 +151,7 @@ func _process(_dt: float) -> void:
 		clock_color = Color(1.0, 0.75, 0.2)
 	elif st == S.ENDED:
 		clock_color = Color(1.0, 0.35, 0.3)
+	var pts: Dictionary = field.points()
 	hud.update_hud({
 		"show_clock": st != S.IDLE,
 		"time_left": match_timer.time_left,
@@ -172,8 +173,13 @@ func _process(_dt: float) -> void:
 		"flywheel_rpm": robot.flywheel_rpm(),
 		"flywheel_on": teleop.flywheel_on,
 		"hood_deg": robot.hood_deg,
-		"score": "red %d  (tips %d)     blue %d  (tips %d)" % [field.score["red"], field.tips["red"], field.score["blue"], field.tips["blue"]],
-		"hive": "red up %d low %d   blue up %d low %d" % [field.cell_count("red", true), field.cell_count("red", false), field.cell_count("blue", true), field.cell_count("blue", false)],
+		"score": "red %d  (tips %d)     blue %d  (tips %d)" % [pts["red"], field.tips["red"], pts["blue"], field.tips["blue"]],
+		"hive": "red %d balls, %.1f g   blue %d balls, %.1f g   (tips at %.0f g)" % [field.cell_count("red", true), field.cell_weight_g("red", true), field.cell_count("blue", true), field.cell_weight_g("blue", true), Config.num("field.hive_tip_weight_g", 100.0)],
+		"nectar": "red %d  blue %d waiting off the field" % [field.nectar_reserve["red"], field.nectar_reserve["blue"]],
+		"held_nectar": robot.held_of("nectar"),
+		"next_kind": robot.next_kind() if robot.held_total() > 0 else "",
+		"jam": robot.jam_reason,
+		"last_shot": robot.last_shot,
 		"turret_deg": robot.turret_from_home_deg(),
 		"turret_half_range": robot.turret_range_deg() / 2.0,
 		"turret_continuous": robot.turret_continuous,
@@ -211,6 +217,10 @@ func _physics_process(_dt: float) -> void:
 		teleop.shot_outward = field.mouth_outward(_alliance)
 	field.update_flowers(robot, pollen, _dt)
 	field.update_hives(_dt)
+	# With a minute to go the humans may put all their remaining nectar on the field.
+	if match_timer.state == match_timer.State.TELEOP and match_timer.time_left <= 60.0:
+		for a in ["red", "blue"]:
+			field.enter_nectar(a, 99)
 
 func _java_status() -> String:
 	if bridge.connected:
@@ -296,6 +306,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_2: teleop.toggle_lever(false)
 			KEY_V: robot.toggle_shell()
 			KEY_T: teleop.auto_aim = not teleop.auto_aim
+			KEY_N: field.enter_nectar(_alliance, 1)   # a human puts one of our waiting nectar in the loading zone
 	elif event is InputEventJoypadButton and event.pressed:
 		if bridge.connected and not event.button_index in [JOY_BUTTON_START, JOY_BUTTON_BACK]:
 			return

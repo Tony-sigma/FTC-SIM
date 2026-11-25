@@ -22,6 +22,7 @@ Driver practice and (later) real-OpMode testing for our FTC robot.
 | Front lever / back lever (toggle) | A / B | 1 / 2 |
 | Player-view ↔ robot-centric driving | Y | F |
 | Start a 2:00 driver-controlled match | Start | Enter |
+| Bring one of your waiting nectar into the loading zone | – | N |
 | Start a full match (30 s auto → transition → 2:00) | – | M |
 | Reset robot, field and clock | Back | R |
 | Run a Java OpMode | – | J |
@@ -196,8 +197,17 @@ only the chassis box does.
   the same model. The spin and lift numbers are placeholders (`pollen._air_note`).
 - **Feeders and shooter:** each intake motor also runs its feeder, carrying balls up to the shared
   neck. A ball at the neck waits there until the flywheel is spinning *and* its intake motor
-  runs; then it is launched out of the turret's Limelight side at the hood angle. Each shot
-  slows the flywheel a little.
+  runs; then it goes through the wheels and out of the turret at the hood angle.
+- **Shooter physics:** the two pairs of green wheels are 54.3 mm apart, so a pollen is squashed
+  16.8 mm and a nectar 37.1 mm on the way through. That takes energy out of everything that spins
+  (the two 0.125 kg flywheel weights, the two 4 in wheels and the two 3 in wheels): each ball slows
+  the wheels, a nectar about three times as much as a pollen, and the motors then bring the speed
+  back. A ball leaves slower when the wheels are still recovering, so a stream of shots only stays
+  on target if the code *holds* the flywheel speed (`RUN_USING_ENCODER` / `setVelocity`); with
+  plain `setPower` every shot is weaker than the last. A flywheel turning too slowly cannot squeeze
+  a nectar through at all: it jams (the HUD says so) until you stop feeding and spin up. The HUD
+  shows the last shot's speed and how far the flywheel dipped. How stiff the balls are and how well
+  the wheels grip are placeholders: see `pollen._squeeze_note` and `shooter._grip_note`.
 
 ## The field
 The floor plan is the real BIOBUZZ one: it is read from `data/field_layout.json` and
@@ -211,16 +221,28 @@ Each hive is a seesaw on top of the frame, 43 in above the floor: two tunnel-sha
 centre pivot, each open at its outer end. Pollen and the robot collide with the real shapes, and
 the robot can drive under the hives between the frame legs.
 
-**Hive rule:** when the raised cell holds 8 pollen the seesaw tips. The pollen inside at that
-moment are scored for that alliance; they then roll out of the lowered cell and the other cell
-becomes the raised one. Pollen that left the cell before the tip do not count. The HUD shows the
-balls in each cell and the score.
+**Nectar:** the bigger, heavier ball (3.6 in, 26.5 g, red or blue). As in a real match, three
+start in each raised hive cell and five more per alliance wait off the field. The humans put one
+into their loading zone after every tip of their own hive, and all the rest when a minute is left
+(in free practice press **N** to bring one in). The intake, feeders and shooter handle nectar like
+pollen, with its own size and weight; the automatic hood aims for whichever ball is next in line.
 
-**Flowers:** a deployed lever held against a flower works as a wedge and the flower drops its
-pollen to the floor, one at a time. The flowers are still plain cylinders.
+**Hive rule:** the seesaw tips when the weight in the raised cell reaches 100 g (`field.hive_tip_weight_g`:
+8 pollen, or 4 nectar, or a mix). The three nectar that start in the cell already weigh 79.5 g, so
+the first tip of a match needs only 2 pollen. Everything inside then rolls out of the lowered cell
+and the other cell becomes the raised one.
 
-Still **guesses** (in `robot_config.json` under `field`): the hive's tilt angle and tip time, the
-flower height, and how close the lever must be. Nectar is not modelled.
+**Flowers:** the real AndyMark flower (`cad/field/flower.glb`). Pollen stand in a stack inside it. A
+deployed lever held under a flower wedges out the bottom pollen, one at a time, and it rolls to the
+robot. A ball dropped in through the top ring joins the stack. A nectar is too big to pass the
+middle ring, so it stays in the flower and blocks any pollen above it.
+
+**Points** (HUD, as if the match ended now): 20 per hive tip, 2 per ball still in your raised cell,
+2 per ball in a flower you own (your nectar is the top-most one in it), 5 for the bottom-most nectar
+in each flower, 1 per ball in your garden. LEAVE, PARK and fouls are not counted.
+
+Still **guesses** (in `robot_config.json` under `field`): the weight that tips the hive (the manual
+gives none), its tip time, and how close the lever must be to a flower.
 
 The driver stands behind the red wall (left) by default; set `driver.alliance` to `blue` to switch.
 
@@ -241,6 +263,7 @@ counter-clockwise. Red wall is −x, blue wall is +x, audience is −y.
 godot --headless -s tests/test_drive.gd
 godot --headless -s tests/test_java.gd
 godot --headless -s tests/test_mechanism_opmodes.gd
+godot --headless -s tests/test_nectar.gd
 ```
 The second one compiles and runs the sample Java OpModes against the sim (needs a JDK).
 

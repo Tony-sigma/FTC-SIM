@@ -155,7 +155,7 @@ func _run() -> void:
 	await steps(200)
 	check("reverse spits the balls back out", robot.held_total() == 0 and pollen.ball_count() == 6, "%d on field" % pollen.ball_count())
 	robot.intake_front_power = 0.0
-	# Hive rule: 7 pollen do nothing, the 8th tips the seesaw and all 8 score.
+	# Hive rule (empty cell): 7 pollen (87.5 g) do nothing, the 8th (100 g) tips the seesaw for 20 points.
 	pollen.clear()
 	var hive: Dictionary = main.field.hive_of("red")
 	var up0: String = hive["up_side"]
@@ -164,15 +164,15 @@ func _run() -> void:
 		pollen.spawn_ball(drop + Vector3((i % 4 - 1.5) * 0.08, 0.0, 0.0))
 		await steps(50)
 	await steps(120)
-	check("7 pollen in the raised cell: no tip, nothing scored", main.field.score["red"] == 0 and hive["up_side"] == up0 and main.field.cell_count("red", true) == 7, "%d in cell" % main.field.cell_count("red", true))
+	check("7 pollen in the raised cell: no tip", main.field.tips["red"] == 0 and hive["up_side"] == up0 and main.field.cell_count("red", true) == 7 and main.field.points()["red"] == 14, "%d in cell, %.1f g" % [main.field.cell_count("red", true), main.field.cell_weight_g("red", true)])
 	pollen.spawn_ball(drop)
 	await steps(90)
-	check("8th pollen tips the hive and 8 are scored", main.field.score["red"] == 8 and main.field.tips["red"] == 1 and hive["up_side"] != up0, "score %d" % main.field.score["red"])
+	check("8th pollen tips the hive", main.field.tips["red"] == 1 and hive["up_side"] != up0, "tips %d" % main.field.tips["red"])
 	await steps(600)
 	check("pollen roll out of the lowered cell", main.field.cell_count("red", false) == 0 and pollen.ball_count() == 8, "%d left in cell" % main.field.cell_count("red", false))
-	check("blue score is untouched", main.field.score["blue"] == 0)
+	check("the tip is worth 20 points, blue has none", main.field.points()["red"] == 20 and main.field.tips["blue"] == 0, str(main.field.points()))
 	# Automatic hood: from several places on the field, a shot lands in the raised red cell.
-	for pose in [Vector3(-58, -48, 0), Vector3(-40, -55, 120), Vector3(30, -60, -90), Vector3(0, -60, 180)]:
+	for pose in [Vector3(-58, -48, 0), Vector3(-40, -55, 120), Vector3(34, -50, -90), Vector3(0, -60, 180)]:
 		pollen.clear()
 		main.field.reset_elements(pollen)
 		pollen.clear()
@@ -180,7 +180,8 @@ func _run() -> void:
 		robot.set_pose_ftc(pose.x, pose.y, pose.z)
 		robot.aim_point = main.field.aim_point("red")
 		teleop.shot_outward = main.field.mouth_outward("red")
-		robot.feeders = [[1.0], []]
+		robot.feeders = [[], []]
+		robot.load_ball(0)
 		await steps(480)  # let the turret come round first: the exit point moves with it
 		var plan: Dictionary = teleop.compute_shot(main.field.mouth_point("red"))
 		robot.hood_servo = plan.get("hood_servo", robot.hood_servo)
@@ -228,10 +229,10 @@ func _run() -> void:
 	var fl = main.field.flowers[2]  # the flower on the left (red) wall
 	robot.set_pose_ftc(fl["pos"].x / IN + (robot.length / 2.0 + 0.12) / IN, -fl["pos"].z / IN, 0)
 	await steps(120)
-	check("flower keeps its pollen while the lever is at its default", fl["count"] == 4 and pollen.ball_count() == before)
+	check("flower keeps its pollen while the lever is at its default", fl["stack"].size() == 4 and pollen.ball_count() == before)
 	robot.lever_back_servo = 1.0
 	await steps(360)
-	check("deployed lever empties the flower", fl["count"] == 0 and pollen.ball_count() == before + 4, "flower %d, +%d balls" % [fl["count"], pollen.ball_count() - before])
+	check("deployed lever empties the flower", fl["stack"].size() == 0 and pollen.ball_count() == before + 4, "flower %d, +%d balls" % [fl["stack"].size(), pollen.ball_count() - before])
 	pollen.clear()
 	robot.reset_pose()
 	await steps(5)

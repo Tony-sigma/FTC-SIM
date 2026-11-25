@@ -31,6 +31,8 @@ public class SimLink {
 
     private final Map<String, Double> motorsOut = new ConcurrentHashMap<>();
     private final Map<String, Double> servosOut = new ConcurrentHashMap<>();
+    /** Motors whose speed the controller holds (RUN_USING_ENCODER / setVelocity), as on the real hub. */
+    private final Set<String> heldOut = ConcurrentHashMap.newKeySet();
     private final List<SimMotor> motors = Collections.synchronizedList(new ArrayList<SimMotor>());
     private volatile String telemetry = "";
     private volatile String opmode = "", flavor = "", phase = "connecting";
@@ -148,7 +150,13 @@ public class SimLink {
             if (!first) b.append(','); first = false;
             b.append(Json.quote(e.getKey())).append(':').append(e.getValue());
         }
-        b.append("},\"telemetry\":").append(Json.quote(telemetry)).append("}\n");
+        b.append("},\"held\":[");
+        first = true;
+        for (String name : heldOut) {
+            if (!first) b.append(','); first = false;
+            b.append(Json.quote(name));
+        }
+        b.append("],\"telemetry\":").append(Json.quote(telemetry)).append("}\n");
         try { out.write(b.toString()); out.flush(); } catch (IOException e) { connected = false; stopRequested = true; }
     }
 
@@ -188,6 +196,7 @@ public class SimLink {
     public double motorTicksPerSecond(String name) { List<Object> v = Json.list(motorsIn.get(name)); return v.size() > 1 ? Json.num(v.get(1)) : 0.0; }
     void register(SimMotor m) { motors.add(m); }
     void setMotor(String name, double power) { motorsOut.put(name, power); }
+    void setMotorHeld(String name, boolean held) { if (held) heldOut.add(name); else heldOut.remove(name); }
     void setServo(String name, double position) { servosOut.put(name, position); }
     /** Everything off: used when the OpMode stops, like the real robot controller does. */
     public void stopAllMotors() {

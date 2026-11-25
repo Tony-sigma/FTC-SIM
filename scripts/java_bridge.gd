@@ -131,6 +131,7 @@ func _zero_robot() -> void:
 	robot.intake_front_power = 0.0
 	robot.intake_back_power = 0.0
 	robot.shooter_power = 0.0
+	robot.velocity_hold = bool(Config.value("shooter.velocity_control", true))
 	robot.gate_open = true   # no gate servo in the code = pollen feed straight through
 	robot.aim_point = null
 
@@ -156,6 +157,9 @@ func _apply(msg: Dictionary) -> void:
 		elif _shooters.has(name):
 			_shooter[_shooters.find(name)] = absf(p)
 			robot.shooter_power = (_shooter[0] + _shooter[1]) / 2.0 if _shooter[0] > 0.0 and _shooter[1] > 0.0 else maxf(_shooter[0], _shooter[1])
+	# Shooter motors in RUN_USING_ENCODER have their speed held by the hub; with plain power they do not.
+	var held: Array = msg.get("held", [])
+	robot.velocity_hold = _shooters.any(func(n): return held.has(n))
 	var servos: Dictionary = msg.get("servos", {})
 	for name in servos:
 		var pos := clampf(float(servos[name]), 0.0, 1.0)

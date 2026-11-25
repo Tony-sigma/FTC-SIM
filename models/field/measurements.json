@@ -23,6 +23,30 @@
       ]
     }
   },
+  "flower": {
+    "pivot_in_cad_in": [
+      0,
+      0,
+      0
+    ],
+    "size_in": [
+      6.67,
+      23.43,
+      6.16
+    ],
+    "bounds_from_pivot_in": {
+      "min": [
+        -3.33,
+        0,
+        -3.75
+      ],
+      "max": [
+        3.33,
+        23.43,
+        2.41
+      ]
+    }
+  },
   "hive_frame": {
     "marks_in": [
       [

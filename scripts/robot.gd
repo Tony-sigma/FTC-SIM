@@ -61,8 +61,16 @@ var hood_deg := 45.0
 var flywheel_fraction := 0.0    # actual flywheel speed, 0..1 of max
 var flywheel_max_rpm := 3000.0
 var shots_fired := 0
-## Balls inside each feeder: progress 0 (just swallowed) .. 1 (waiting at the neck).
+## Balls inside each feeder, the one nearest the shooter first:
+## { p: progress 0 (just swallowed) .. 1 (waiting at the neck), kind: "pollen" / "nectar_red" / "nectar_blue" }.
 var feeders: Array = [[], []]
+## Why a ball is stuck at the shooter wheels right now ("" = nothing stuck).
+var jam_reason := ""
+## The last shot: { kind, speed (m/s), rpm_before, rpm_after }.
+var last_shot: Dictionary = {}
+## True = the motor controller holds the flywheel speed (setVelocity / RUN_USING_ENCODER): full voltage
+## whenever the wheel is below the wanted speed. False = plain setPower, which recovers slowly.
+var velocity_hold := true
 var pollen  # scripts/pollen.gd, set by main
 
 var _feeder_cap := 3
@@ -70,8 +78,20 @@ var _total_cap := 3
 var _transit_s := 0.5
 var _mouth_width := 0.216
 var _exit_speed_max := 5.6
-var _spin_tau := 0.6
-var _shot_drop := 0.25
+var _omega_max := 628.3         # flywheel free speed, rad/s
+var _exit_per_omega := 0.04     # ball speed (m/s) per rad/s of flywheel
+var _fly_r := 0.0508
+var _top_r := 0.0381
+var _wheel_gap := 0.0543
+var _fly_inertia := 7.4e-4      # everything that spins, as felt at the flywheel shaft (kg m^2)
+var _motor_torque := 0.288      # stall torque of all the shooter motors together (N m)
+var _hold_gain := 20.0
+var _wheel_grip := 0.8
+var _feeder_push := 5.0
+var _slip_factor := 2.0
+var _spin_fraction := 0.6
+var _jam_timer := 0.0
+var _push_cache: Dictionary = {}
 var _min_shoot := 0.2
 var _shot_interval := 0.25
 var _hood_min := 30.0
@@ -151,9 +171,26 @@ func apply_config() -> void:
 	_mouth_width = Config.inches("intakes.mouth_width_in", 12.0)
 	_mouth_reach = Config.inches("intakes.mouth_reach_in", 4.0)
 	flywheel_max_rpm = Config.num("shooter.flywheel_max_rpm", 3000.0)
-	_exit_speed_max = flywheel_max_rpm / 60.0 * PI * Config.inches("shooter.flywheel_diameter_in", 4.0) * Config.num("shooter.exit_speed_fraction", 0.35)
-	_spin_tau = Config.num("shooter.spin_up_time_s", 0.6)
-	_shot_drop = Config.num("shooter.speed_drop_per_shot", 0.25)
+	_fly_r = Config.inches("shooter.flywheel_diameter_in", 4.0) / 2.0
+	_top_r = Config.inches("shooter.top_wheel_diameter_in", 3.0) / 2.0
+	_top_ratio = Config.num("shooter.top_wheel_speed_ratio", 2.25)
+	_omega_max = flywheel_max_rpm / 60.0 * TAU
+	_exit_per_omega = _fly_r * Config.num("shooter.exit_speed_fraction", 0.35)
+	_exit_speed_max = _omega_max * _exit_per_omega
+	_wheel_gap = Config.num("shooter.wheel_gap_mm", 54.3) / 1000.0
+	# What has to be kept spinning: the flywheel weights and the bottom wheels on the motor shaft, plus the
+	# top wheels, which turn faster and so count for (ratio squared) times their own inertia.
+	var disc_r := Config.num("shooter.flywheel_weight_diameter_mm", 71.0) / 2000.0
+	_fly_inertia = Config.num("shooter.flywheel_weight_count", 2.0) * 0.5 * Config.num("shooter.flywheel_weight_kg", 0.125) * disc_r * disc_r \
+		+ Config.num("shooter.wheel_count", 2.0) * 0.5 * Config.num("shooter.wheel_mass_kg", 0.085) * _fly_r * _fly_r \
+		+ Config.num("shooter.top_wheel_count", 2.0) * 0.5 * Config.num("shooter.top_wheel_mass_kg", 0.05) * _top_r * _top_r * _top_ratio * _top_ratio
+	_motor_torque = Config.num("shooter.motor_count", 2.0) * Config.num("shooter.motor_stall_torque_nm", 0.144)
+	velocity_hold = bool(Config.value("shooter.velocity_control", true))
+	_hold_gain = Config.num("shooter.velocity_gain", 20.0)
+	_wheel_grip = Config.num("shooter.wheel_grip", 0.8)
+	_feeder_push = Config.num("intakes.feeder_push_n", 5.0)
+	_slip_factor = Config.num("shooter.slip_energy_factor", 2.0)
+	_push_cache = {}
 	_min_shoot = Config.num("shooter.min_speed_fraction_to_shoot", 0.2)
 	_shot_interval = Config.num("shooter.shot_interval_s", 0.25)
 	_hood_min = Config.num("shooter.hood_min_deg", 30.0)
@@ -161,13 +198,11 @@ func apply_config() -> void:
 	_hood_speed = Config.num("shooter.hood_speed_deg_per_s", 90.0)
 	_exit_offset = _vec("shooter.exit_offset_m", Vector3(0.1, 0.5, 0.0))
 	_cad_line_deg = Config.num("shooter.cad_wheel_line_deg", 22.7)
-	_top_ratio = Config.num("shooter.top_wheel_speed_ratio", 2.25)
-	# Spin the ball leaves with, per m/s of exit speed. Rolling between two surfaces moving at different
-	# speeds gives spin = (difference in surface speed) / (ball diameter).
-	var surf_ratio := _top_ratio * Config.num("shooter.top_wheel_diameter_in", 3.0) / Config.num("shooter.flywheel_diameter_in", 4.0)
-	var ball_d := Config.inches("pollen.diameter_in", 2.8)
+	# Spin the ball leaves with. Rolling between two surfaces moving at different speeds gives
+	# spin = (difference in surface speed) / (ball diameter); this is that difference per m/s of exit speed.
+	var surf_ratio := _top_ratio * _top_r / _fly_r
 	var fly_surface_per_exit := 1.0 / maxf(Config.num("shooter.exit_speed_fraction", 0.8), 0.01)
-	_spin_per_speed = (surf_ratio - 1.0) * fly_surface_per_exit / ball_d * Config.num("pollen.spin_efficiency", 0.6)
+	_spin_per_speed = (surf_ratio - 1.0) * fly_surface_per_exit
 	_build_body()
 	_build_intake_zones()
 
@@ -192,6 +227,9 @@ func reset_pose() -> void:
 	flywheel_fraction = 0.0
 	shots_fired = 0
 	feeders = [[], []]
+	jam_reason = ""
+	last_shot = {}
+	_jam_timer = 0.0
 
 func set_pose_ftc(x_in: float, y_in: float, heading_deg: float) -> void:
 	position = Vector3(x_in * Config.IN, 0.0, -y_in * Config.IN)
@@ -263,7 +301,33 @@ func preload_pollen() -> void:
 	for i in n:
 		var f: Array = feeders[i % 2]
 		if f.size() < _feeder_cap:
-			f.append(1.0 - 0.25 * f.size())
+			f.append({"p": 1.0 - 0.25 * f.size(), "kind": "pollen"})
+
+## Put a ball straight into a feeder (tests, practice set-ups). Returns false when there is no room.
+func load_ball(feeder: int, kind := "pollen", progress := 1.0) -> bool:
+	if feeders[feeder].size() >= _feeder_cap or held_total() >= _total_cap:
+		return false
+	feeders[feeder].append({"p": progress, "kind": kind})
+	return true
+
+## How many of the held balls are of this kind ("nectar" counts both colours).
+func held_of(kind: String) -> int:
+	var n := 0
+	for f in feeders:
+		for b in f:
+			if str(b["kind"]).begins_with(kind):
+				n += 1
+	return n
+
+## The ball that will be shot next: the one furthest up either feeder ("pollen" when the robot is empty).
+func next_kind() -> String:
+	var best := -1.0
+	var kind := "pollen"
+	for f in feeders:
+		if f.size() > 0 and float(f[0]["p"]) > best:
+			best = f[0]["p"]
+			kind = f[0]["kind"]
+	return kind
 
 ## The outer edge of each deployed lever, as [end_a, end_b] in world space (for touching flowers).
 func deployed_lever_bars() -> Array:
@@ -313,9 +377,20 @@ func _build_intake_zones() -> void:
 
 func _update_game_pieces(dt: float) -> void:
 	var powers := [intake_front_power if enabled else 0.0, intake_back_power if enabled else 0.0]
-	# Flywheel spins up/down toward the commanded power.
+	# Flywheel: a DC motor's torque falls off as it speeds up (stall torque at rest, nothing at free
+	# speed), and it has the whole spinning mass to turn. With velocity hold the controller pushes at
+	# full voltage until the wanted speed is reached; with plain power it only ever gets `target` volts.
 	var target := clampf(shooter_power, 0.0, 1.0) if enabled else 0.0
-	flywheel_fraction += (target - flywheel_fraction) * (1.0 - exp(-dt / maxf(_spin_tau / 3.0, 0.001)))
+	var volts := target
+	if velocity_hold and target > 0.0:
+		volts = clampf(target + _hold_gain * (target - flywheel_fraction), 0.0, 1.0)
+	if _jam_timer > 0.0:
+		_jam_timer = maxf(_jam_timer - dt, 0.0)   # a ball is wedged against the wheels
+		flywheel_fraction = 0.0
+	else:
+		flywheel_fraction = maxf(flywheel_fraction + _motor_torque * (volts - flywheel_fraction) / (_fly_inertia * _omega_max) * dt, 0.0)
+		if jam_reason != "" and held_total() == 0:
+			jam_reason = ""
 	hood_deg = move_toward(hood_deg, lerpf(_hood_min, _hood_max, clampf(hood_servo, 0.0, 1.0)), _hood_speed * dt)
 	_shot_cooldown = maxf(_shot_cooldown - dt, 0.0)
 	_spit_cooldown = maxf(_spit_cooldown - dt, 0.0)
@@ -328,38 +403,131 @@ func _update_game_pieces(dt: float) -> void:
 			for body in _zones[i].get_overlapping_bodies():
 				if balls.size() >= _feeder_cap or held_total() >= _total_cap:
 					break
-				if body.is_in_group("pollen") and not body.is_queued_for_deletion():
+				if body.is_in_group("balls") and not body.is_queued_for_deletion():
+					balls.append({"p": 0.0, "kind": pollen.kind_of(body)})
 					pollen.remove_ball(body)
-					balls.append(0.0)
 		# Carry balls up the feeder; they queue behind each other.
 		if power > 0.1:
 			for k in balls.size():
-				balls[k] = minf(balls[k] + power * dt / _transit_s, 1.0 - 0.25 * k)
-			# Ball at the neck + flywheel spinning = shot.
-			if gate_open and balls.size() > 0 and balls[0] >= 1.0 and flywheel_fraction >= _min_shoot and _shot_cooldown <= 0.0:
-				balls.pop_front()
-				_launch()
+				balls[k]["p"] = minf(balls[k]["p"] + power * dt / _transit_s, 1.0 - 0.25 * k)
+			# Ball at the neck + flywheel spinning = it meets the wheels.
+			if gate_open and balls.size() > 0 and balls[0]["p"] >= 1.0 and flywheel_fraction >= _min_shoot and _shot_cooldown <= 0.0 and _jam_timer <= 0.0:
+				var kind: String = balls[0]["kind"]
+				var res := shot_physics(kind, flywheel_fraction)
+				if res["ok"]:
+					balls.pop_front()
+					jam_reason = ""
+					_launch(kind, res)
+				else:
+					# The wheels cannot get it through: it stalls them and is pushed back down a little.
+					jam_reason = res["reason"]
+					_jam_timer = 0.4
+					_shot_cooldown = 0.4
+					balls[0]["p"] = 0.8
 		elif power < -0.1 and balls.size() > 0 and _spit_cooldown <= 0.0:
 			# Reverse: spit the newest ball back out of the intake.
-			balls.pop_back()
+			var spat: Dictionary = balls.pop_back()
 			_spit_cooldown = 0.3
 			if pollen != null:
 				var sgn := -1.0 if i == 0 else 1.0
 				var out := global_transform.basis.z * sgn
-				pollen.spawn_ball(global_position + out * (length / 2.0 + 0.09) + Vector3(0, 0.05, 0), velocity + out * 1.0, self)
+				var r: float = pollen.props(spat["kind"])["radius"]
+				pollen.spawn_ball(global_position + out * (length / 2.0 + r + 0.055) + Vector3(0, r + 0.014, 0), velocity + out * 1.0, self, Vector3.ZERO, spat["kind"])
 
 ## Where a ball leaves the shooter, how fast, and with what spin: [position, velocity, spin] in world space.
 ## The shooter points along the turret's +X (the camera side), tilted up by the hood angle. The faster top
 ## wheel gives the ball topspin about the turret's sideways axis.
-func shot_state_for(power_fraction: float, hood_angle_deg: float) -> Array:
+## `power_fraction` is the flywheel's speed (as a fraction of full speed) when the ball reaches it; the
+## ball's own weight and squeeze slow the wheels a little on the way through (see shot_physics).
+func shot_state_for(power_fraction: float, hood_angle_deg: float, kind := "") -> Array:
 	var turret_basis := global_transform.basis * Basis(Vector3.UP, deg_to_rad(turret_deg))
 	var a := deg_to_rad(hood_angle_deg)
 	var dir := (turret_basis.x * cos(a) + Vector3.UP * sin(a)).normalized()
-	var speed := _exit_speed_max * power_fraction
-	return [global_position + turret_basis * _exit_offset, velocity + dir * speed, -turret_basis.z * (_spin_per_speed * speed)]
+	if kind == "":
+		kind = next_kind()
+	var res := shot_physics(kind, power_fraction)
+	var speed: float = res["speed"]
+	return [global_position + turret_basis * _exit_offset, velocity + dir * speed, -turret_basis.z * (speed * _spin_rate(kind))]
 
 func shot_state() -> Array:
 	return shot_state_for(flywheel_fraction, hood_deg)
+
+## Spin (rad/s) a ball of this kind leaves with, per m/s of exit speed.
+func _spin_rate(kind: String) -> float:
+	var b := _ball(kind)
+	return _spin_per_speed / (2.0 * float(b["radius"])) * float(b["spin_efficiency"])
+
+func _ball(kind: String) -> Dictionary:
+	if pollen != null:
+		return pollen.props(kind)
+	return {"radius": 0.0356, "mass": 0.0125, "squeeze_force_n": 45.0, "squeeze_loss": 0.3, "spin_efficiency": 0.6}
+
+## How far the two shooter wheels squash a ball of this kind (metres), from the gap between them.
+func squeeze_m(kind: String) -> float:
+	return maxf(2.0 * float(_ball(kind)["radius"]) - _wheel_gap, 0.0)
+
+## The push from behind a ball needs before the wheels pull it in by themselves. As the ball arrives the
+## wheels touch it at a slant: they push it back (the slanted squeeze) and drag it in (grip). A big ball
+## meets them at a steeper slant, so it needs more grip, or a shove from the feeder.
+func push_needed_n(kind: String) -> float:
+	if _push_cache.has(kind):
+		return _push_cache[kind]
+	_push_cache[kind] = _push_needed_n(kind)
+	return _push_cache[kind]
+
+func _push_needed_n(kind: String) -> float:
+	var b := _ball(kind)
+	var r: float = b["radius"]
+	var side := squeeze_m(kind) / 2.0
+	if side <= 0.0:
+		return 0.0
+	var stiffness: float = float(b["squeeze_force_n"]) / side
+	var worst := 0.0
+	var steps := 240
+	for i in steps:
+		var x := -(_fly_r + r) * (1.0 - float(i) / steps)   # distance still to go to the narrowest point
+		var total := 0.0
+		for wheel_r in [_fly_r, _top_r]:
+			var y: float = wheel_r + _wheel_gap / 2.0
+			var depth := maxf(wheel_r + r - sqrt(x * x + y * y), 0.0)
+			var slant := atan2(-x, y)
+			total += stiffness * depth * (_wheel_grip * cos(slant) - sin(slant))
+		worst = minf(worst, total)
+	return maxf(-worst, 0.0)
+
+## What happens when a ball of this kind meets the wheels turning at `fraction` of full speed.
+## Returns { ok, reason, speed (ball exit speed, m/s), after (flywheel fraction just after), stored_j, lost_j,
+## push_n }. The energy comes out of the spinning wheels:
+##  - squashing the ball takes work; most comes back as it springs out, a share (squeeze_loss) is lost;
+##  - the ball is dragged up to speed by rubbing: the wheels spend about twice the energy the ball gains.
+## If the wheels do not hold enough energy to squash it through, or cannot grip it, it does not go.
+func shot_physics(kind: String, fraction: float) -> Dictionary:
+	var b := _ball(kind)
+	var out := {"ok": false, "reason": "", "speed": 0.0, "after": fraction, "stored_j": 0.0, "lost_j": 0.0, "push_n": 0.0}
+	var w0 := fraction * _omega_max
+	var stored: float = 2.0 / 3.0 * float(b["squeeze_force_n"]) * squeeze_m(kind)
+	var lost: float = stored * float(b["squeeze_loss"])
+	out["stored_j"] = stored
+	out["lost_j"] = lost
+	out["push_n"] = push_needed_n(kind)
+	var label := "NECTAR" if kind.begins_with("nectar") else "POLLEN"
+	if out["push_n"] > _feeder_push:
+		out["reason"] = "%s WON'T FEED - the wheels can't grip it" % label
+		return out
+	if 0.5 * _fly_inertia * w0 * w0 <= stored:
+		out["reason"] = "%s JAMMED - flywheel too slow to squeeze it through" % label
+		out["after"] = 0.0
+		return out
+	# Energy the ball carries away: moving + spinning (a hollow ball: I = 2/3 m r^2).
+	var r: float = b["radius"]
+	var spin_per_speed := _spin_rate(kind)
+	var per_v2: float = 0.5 * float(b["mass"]) * (1.0 + 2.0 / 3.0 * r * r * spin_per_speed * spin_per_speed) * _slip_factor
+	var w1_sq := (w0 * w0 - 2.0 * lost / _fly_inertia) / (1.0 + 2.0 * per_v2 * _exit_per_omega * _exit_per_omega / _fly_inertia)
+	var w1 := sqrt(maxf(w1_sq, 0.0))
+	out["ok"] = true
+	out["speed"] = w1 * _exit_per_omega
+	out["after"] = w1 / _omega_max
+	return out
 
 func max_exit_speed() -> float:
 	return _exit_speed_max
@@ -370,13 +538,14 @@ func hood_limits_deg() -> Vector2:
 func is_full() -> bool:
 	return held_total() >= _total_cap
 
-func _launch() -> void:
+func _launch(kind: String, res: Dictionary) -> void:
 	_shot_cooldown = _shot_interval
 	shots_fired += 1
-	var st := shot_state()
-	flywheel_fraction *= 1.0 - _shot_drop
+	var st := shot_state_for(flywheel_fraction, hood_deg, kind)
+	last_shot = {"kind": kind, "speed": res["speed"], "rpm_before": flywheel_rpm(), "rpm_after": float(res["after"]) * flywheel_max_rpm}
+	flywheel_fraction = res["after"]
 	if pollen != null:
-		pollen.spawn_ball(st[0], st[1], self, st[2])
+		pollen.spawn_ball(st[0], st[1], self, st[2], kind)
 
 ## Dotted arc showing where a shot would go with the current flywheel speed, hood and turret.
 func _update_aim_dots() -> void:
@@ -401,10 +570,11 @@ func _update_aim_dots() -> void:
 	var st := shot_state()
 	var p: Vector3 = st[0]
 	var v: Vector3 = st[1]
-	var k_drag: float = pollen.k_drag if pollen != null else 0.0
-	var k_area: float = pollen.k_area if pollen != null else 0.0
-	var lift_max: float = pollen.lift_max if pollen != null else 0.0
-	var rad: float = pollen.radius if pollen != null else 0.036
+	var b: Dictionary = pollen.props(next_kind()) if pollen != null else {}
+	var k_drag: float = b.get("k_drag", 0.0)
+	var k_area: float = b.get("k_area", 0.0)
+	var lift_max: float = b.get("lift_max", 0.0)
+	var rad: float = b.get("radius", 0.036)
 	var dt := 0.0125
 	for i in _aim_dots.size():
 		for sub in 4:

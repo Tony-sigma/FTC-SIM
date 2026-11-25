@@ -16,11 +16,17 @@
     "tile_in": 23.54,
     "wall_height_in": 12.0,
     "_layout_note": "The floor plan comes from data/field_layout.json (BEE simulator, manual TU02). The numbers below are GUESSES for things that file does not give.",
-    "flower_height_in": 17.5,
+    "_flower_note": "The flower is the real CAD (cad/field/flower.glb, am-5855). Heights are measured from it, above the tiles: the middle ring a nectar rests on, the scoring volume (between the middle ring and the top ring) and the top ring. Pollen stand on the tile inside the floor ring and are taken out under the middle ring; balls go in through the top ring. flower_radius_in + flower_lever_reach_in = how close to the flower's centre a deployed lever must be to wedge a pollen out (GUESS).",
+    "flower_axis_from_wall_in": 3.75,
+    "flower_radius_in": 2.4,
+    "flower_nectar_rest_in": 5.1,
+    "flower_scoring_bottom_in": 4.9,
+    "flower_scoring_top_in": 21.7,
+    "flower_top_ring_in": 21.5,
     "flower_release_interval_s": 0.35,
     "flower_lever_reach_in": 2.5,
     "hive_pivot_height_in": 43.95,
-    "_hive_note": "The hive is a seesaw on top of the A-frame (models in cad/field/). Pivot height 43.95 in and tilt 30 deg are the BEE simulator's values (from the game manual); the frame CAD's axle holder agrees to within an inch. Rule from the team: at hive_tip_pollen pollen in the raised cell it tips, and the pollen inside at that moment count as scored. They then roll out of the lowered cell and the other cell becomes the raised one. Tip time is a guess.",
+    "_hive_note": "The hive is a seesaw on top of the A-frame (models in cad/field/). Pivot height 43.95 in and tilt 30 deg are the BEE simulator's values (from the game manual); the frame CAD's axle holder agrees to within an inch. It tips when the WEIGHT in the raised cell reaches hive_tip_weight_g. The manual gives no number; the BEE simulator uses a random 88 to 112 g, and the team's rule of 8 pollen is 100 g. A nectar (26.5 g) counts a bit more than two pollen (12.5 g). Three nectar (79.5 g) start in each raised cell, so the FIRST tip of a match needs only 2 pollen; after that an empty cell needs 8 pollen, or 4 nectar. Each tip scores 20 points and lets the alliance's humans put one more nectar into their loading zone.",
     "_april_tag_note": "From the official AprilTag art (ftc-resources.firstinspires.org, 2027 field): every hive cell has a cluster of four 36h11 tags on a 17 x 5 in sticker on its underside. FTC SDK 12.0 reports each cluster as one detection whose pose points at the centre of the cell's opening.",
     "april_tag_clusters": {
       "red_scoring": { "name": "RED SCORING", "ids": [30, 31, 32, 33] },
@@ -29,7 +35,8 @@
       "blue_scoring": { "name": "BLUE SCORING", "ids": [42, 43, 44, 45] }
     },
     "april_tag_offsets_in": [-6.0, -2.26, 3.24, 6.99],
-    "hive_tip_pollen": 8,
+    "hive_tip_weight_g": 100.0,
+    "nectar_in_raised_cell": 3,
     "hive_tip_angle_deg": 30.0,
     "hive_tip_time_s": 0.8
   },
@@ -42,7 +49,22 @@
     "drag_coefficient": 0.5,
     "spin_efficiency": 0.6,
     "lift_coefficient_max": 0.35,
-    "air_density_kg_m3": 1.2
+    "air_density_kg_m3": 1.2,
+    "_squeeze_note": "PLACEHOLDER. squeeze_force_n = how hard the ball pushes back when the shooter wheels squash it by the full amount (pollen 16.8 mm, the team's 1.69 cm). Estimated from a hollow polyethylene shell of the ball's weight (about 45 N pollen, 100 N nectar); the soft 35A wheels give way too, so the real figure is probably lower. MEASURE IT: squash a ball that far on a kitchen scale (45 N = 4.6 kg). squeeze_loss_fraction = share of the squashing work that does not spring back.",
+    "squeeze_force_n": 45.0,
+    "squeeze_loss_fraction": 0.3
+  },
+
+  "nectar": {
+    "_note": "The bigger, heavier ball (red / blue). Size, weight and bounce come from data/game_elements.json (3.6 in, 26.5 g); these are the fallback values and the flight numbers. Being heavier for its size it loses less speed to the air than a pollen.",
+    "diameter_in": 3.6,
+    "mass_g": 26.5,
+    "drag_coefficient": 0.5,
+    "spin_efficiency": 0.6,
+    "lift_coefficient_max": 0.35,
+    "_squeeze_note": "PLACEHOLDER, see pollen._squeeze_note. A nectar is squashed 37 mm by the shooter wheels (the team's 3.69 cm).",
+    "squeeze_force_n": 100.0,
+    "squeeze_loss_fraction": 0.3
   },
 
   "intakes": {
@@ -54,7 +76,9 @@
     "feeder_capacity": 2,
     "total_capacity": 4,
     "preload": 4,
-    "feeder_transit_s": 0.4
+    "feeder_transit_s": 0.4,
+    "_push_note": "PLACEHOLDER: how hard a feeder pushes a ball into the shooter wheels (5 N = about half a kilo). Only matters when the wheels cannot grip a ball by themselves (see shooter.wheel_grip).",
+    "feeder_push_n": 5.0
   },
 
   "shooter": {
@@ -63,14 +87,29 @@
     "hood_servo_name": "hoodServo",
     "_gate_note": "ASSUMPTION: something holds pollen at the neck until you want to shoot (a gate/stopper servo). Without one, running a feeder with the flywheel spinning fires straight away. Position > 0.5 = open.",
     "gate_servo_name": "gateServo",
-    "_compression_note": "For reference only (the sim does not model compression). The team gave shooter 1.69 / 3.69 and intake 0.39 / 2.39 for pollen / nectar; the CAD gap between the two shooter wheels is 54.3 mm against a 71.1 mm pollen, i.e. 16.8 mm, so those figures are centimetres.",
+    "_compression_note": "The gap between the two pairs of green wheels is 54.3 mm in the CAD (wheel_gap_mm). A 71.1 mm pollen is squashed 16.8 mm and a 91.4 mm nectar 37.1 mm on the way through: the team's 1.69 and 3.69 (centimetres). The intake squashes them 0.39 and 2.39 cm.",
     "_speed_note": "Motors are the goBILDA 312 rpm Yellow Jacket with the gearbox removed: 6000 rpm free speed, 1:1 to the 4 in flywheel; the 3 in top wheel is geared 2.25x faster. Surface speeds at full power: 31.9 m/s (flywheel) and 53.9 m/s (top wheel), average 42.9 m/s. exit_speed_fraction = ball speed / flywheel surface speed = 1.34 (the average of the two wheels) x 0.6 efficiency. The 0.6 is a PLACEHOLDER for slip and compression losses: measure a real shot and adjust it. That gives about 25.5 m/s at full power, so real shots use roughly a fifth of full power.",
     "flywheel_max_rpm": 6000.0,
     "flywheel_diameter_in": 4.0,
     "exit_speed_fraction": 0.8,
-    "spin_up_time_s": 0.4,
-    "_stream_note": "Rate of fire. speed_drop_per_shot is how much one pollen slows the flywheel: a 12.5 g pollen takes little energy from two spinning wheels, so about 5 percent (PLACEHOLDER, measure it with getVelocity). shot_interval_s is the shortest gap between two pollen through the wheels. feeder_transit_s (under intakes) is how fast the feeders bring the next one.",
-    "speed_drop_per_shot": 0.05,
+    "_flywheel_note": "What the motors have to spin, from the CAD: two 0.125 kg flywheel weights (71 mm discs) and two 4 in 35A compliant wheels on the motor shaft, plus two 3 in wheels turning 2.25x faster. Wheel weights are PLACEHOLDERS (weigh one). Together that is about 7.4e-4 kg m^2 at the shaft; at a shooting speed of 1300 rpm it stores about 7 joules. A pollen takes about 0.4 J out of it (speed dips 4 percent), a nectar about 1.5 J (11 percent). The weights are what keep that dip small.",
+    "flywheel_weight_kg": 0.125,
+    "flywheel_weight_count": 2,
+    "flywheel_weight_diameter_mm": 71.0,
+    "wheel_count": 2,
+    "wheel_mass_kg": 0.085,
+    "top_wheel_count": 2,
+    "top_wheel_mass_kg": 0.05,
+    "wheel_gap_mm": 54.3,
+    "_motor_note": "Two bare goBILDA Yellow Jacket motors: 0.144 N m stall torque each (1.47 kg cm), falling to zero at 6000 rpm. velocity_control true = the code holds the speed (RUN_USING_ENCODER or setVelocity): the hub gives full voltage whenever the wheel is slow, so it is back to speed in a few hundredths of a second. false = plain setPower with RUN_WITHOUT_ENCODER: recovery takes over a second and a stream of shots gets weaker and weaker. A Java OpMode decides this itself by the mode it sets on the shooter motors.",
+    "motor_count": 2,
+    "motor_stall_torque_nm": 0.144,
+    "velocity_control": true,
+    "velocity_gain": 20.0,
+    "_grip_note": "PLACEHOLDERS. wheel_grip = friction between the green wheels and a ball (soft 35A rubber on smooth polyethylene, roughly 0.6 to 1.0). The wheels pull a pollen in by themselves with a grip of 0.5 or more; a nectar meets them at a steeper slant and needs 0.77, or else a push from the feeder (intakes.feeder_push_n). slip_energy_factor: the wheels spend about twice the energy the ball ends up with, the rest is rubbing heat.",
+    "wheel_grip": 0.8,
+    "slip_energy_factor": 2.0,
+    "_stream_note": "Rate of fire. shot_interval_s is the shortest gap between two balls through the wheels; feeder_transit_s (under intakes) is how fast the feeders bring the next one. How much each ball slows the flywheel is worked out from the weights above. Below min_speed_fraction_to_shoot the feeder does not offer a ball to the wheels at all.",
     "min_speed_fraction_to_shoot": 0.05,
     "shot_interval_s": 0.15,
     "_hood_note": "MEASURED from cad/shooter_min.glb and cad/shooter_max.glb (2026-11). The shooter has two wheels: a 4 in flywheel and a 3 in top wheel carried by the hood, which swings around the flywheel axle. Pollen leaves through the gap between them, at right angles to the line joining the two wheel centres. That line is 22.7 deg above horizontal with the hood at its start and 43.8 deg at its end, so the shot leaves at 67.3 deg (start) down to 46.2 deg (end) above the floor. Assumes the shooter sits on the robot at the same tilt as in cad/Robot.glb; uncertainty about 2 deg. Servo 0 = flattest (hood at its end), servo 1 = steepest (hood at its start).",
