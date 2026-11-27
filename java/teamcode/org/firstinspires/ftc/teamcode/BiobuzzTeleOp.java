@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import android.util.Size;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
@@ -129,7 +130,10 @@ public class BiobuzzTeleOp extends OpMode {
 
     // ---- Camera on the shooter ----
     static final String CAMERA_NAME = "Webcam 1";
-    /** An Arducam needs its lens calibration for a correct distance. Fill these in and set the switch to true. */
+    /** Picture size and format: use the ones that worked in "Test: Camera" (true = MJPEG, false = the normal YUY2). */
+    static final int CAMERA_WIDTH = 640, CAMERA_HEIGHT = 480;
+    static final boolean CAMERA_MJPEG = true;
+    /** An Arducam needs its lens calibration (made at that picture size) for a correct distance. Fill these in and set the switch to true. */
     static final boolean USE_LENS_CALIBRATION = false;
     static final double LENS_FX = 0.0, LENS_FY = 0.0, LENS_CX = 0.0, LENS_CY = 0.0;
 
@@ -240,7 +244,12 @@ public class BiobuzzTeleOp extends OpMode {
             AprilTagProcessor.Builder tags = new AprilTagProcessor.Builder();
             if (USE_LENS_CALIBRATION) tags.setLensIntrinsics(LENS_FX, LENS_FY, LENS_CX, LENS_CY);
             aprilTag = tags.build();
-            visionPortal = new VisionPortal.Builder().setCamera(webcam).addProcessor(aprilTag).build();
+            visionPortal = new VisionPortal.Builder()
+                .setCamera(webcam)
+                .setCameraResolution(new Size(CAMERA_WIDTH, CAMERA_HEIGHT))
+                .setStreamFormat(CAMERA_MJPEG ? VisionPortal.StreamFormat.MJPEG : VisionPortal.StreamFormat.YUY2)
+                .addProcessor(aprilTag)
+                .build();
         }
 
         telemetry.addData("Status", "Ready. Press start.");

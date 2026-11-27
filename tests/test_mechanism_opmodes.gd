@@ -145,6 +145,11 @@ func _run() -> void:
 	await steps(480)
 	check("camera test names the raised cell and says it can be scored in", bridge.telemetry.contains("RED AUDIENCE") and bridge.telemetry.contains("RAISED cell, can score") and bridge.telemetry.contains("% of its tags"), bridge.telemetry.strip_edges().replace("\n", " | "))
 
+	check("camera photo tool starts", await start("Test: Camera Photos"))
+	await steps(30)
+	await tap(KEY_1)
+	check("A takes a photo once the camera is streaming", bridge.telemetry.contains("STREAMING") and bridge.telemetry.contains("Photos taken (A) : 1"), bridge.telemetry.strip_edges().replace("\n", " | "))
+
 	check("turret test starts", await start("Test: Turret"))
 	var home: float = robot.turret_goal_deg
 	var hood_before: float = robot.hood_servo

@@ -53,6 +53,8 @@ public class VisionPortal {
     public void setProcessorEnabled(VisionProcessor p, boolean enabled) { if (processors.containsKey(p)) processors.put(p, enabled); }
     public boolean getProcessorEnabled(VisionProcessor p) { return Boolean.TRUE.equals(processors.get(p)); }
     public float getFps() { return streaming ? 30f : 0f; }
+    /** Saves a photo on the real Robot Controller; the simulator has no picture to save. */
+    public void saveNextFrameRaw(String filename) { }
     public void close() { closed = true; streaming = false; }
     /** True while frames are flowing to this processor. Simulator plumbing. */
     public boolean internalIsLive(VisionProcessor p) { return streaming && !closed && getProcessorEnabled(p); }
