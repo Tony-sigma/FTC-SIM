@@ -85,11 +85,12 @@ public class CameraShooterTeleOp extends OpMode {
     /** Flywheel speed for shots by hand when the OpMode starts. Y and A change it. */
     static final double MANUAL_RPM = 1400.0;
     /**
-     * The fastest Y will take it. 6000 = everything the motors have: a ball then leaves at well over
-     * 50 mph, so only go there to find out whether the shooter can pass a ball at all, pointing at a
-     * wall or a blanket with nobody near. For normal use bring this back down to about 2500.
+     * The fastest Y will take it. DO NOT raise this without thinking: the top wheels are geared 2.25 times
+     * faster than this number (36:24 gears, then 30:20 pulleys), so 3000 here is already 6750 rpm on the
+     * small wheels and their printed pulleys. Full motor speed would be about 13500 rpm up there, which
+     * can throw a wheel or a pulley apart.
      */
-    static final double MANUAL_RPM_LIMIT = 6000.0;
+    static final double MANUAL_RPM_LIMIT = 3000.0;
     /** A nectar needs the flywheel about this much faster than a pollen for the same shot. */
     static final double NECTAR_SPEED_FACTOR = 1.04;
     /** Shoot only while the flywheel is within this fraction of the speed the shot needs. */
