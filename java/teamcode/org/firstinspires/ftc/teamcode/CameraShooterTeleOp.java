@@ -63,19 +63,25 @@ public class CameraShooterTeleOp extends OpMode {
     static final boolean REVERSE_SHOOTER_LEFT = true;
     static final boolean REVERSE_SHOOTER_RIGHT = false;
     /**
-     * true = the hub holds the flywheel speed (RUN_USING_ENCODER), so a stream of shots stays the same.
-     * BOTH shooter motors need their encoder cables plugged in. If one is missing, set this to false.
+     * How the flywheel speed is held. The two shooter motors turn the same wheels, so the hub must NOT
+     * control each one's speed by itself: the two controllers pull against each other (seen on the real
+     * robot: one motor at 0 and then at 3000 rpm, the battery sagging, a grinding sound). Instead the
+     * code measures the speed with ONE encoder and gives BOTH motors the same power.
+     *   true  = hold the speed. Needs the encoder cable of the motor chosen in SHOOTER_SPEED_FROM_LEFT.
+     *   false = plain power, no encoder needed. A stream of shots then gets weaker and weaker.
      */
     static final boolean SHOOTER_HOLD_SPEED = true;
+    /** Whose encoder measures the flywheel: true = shooterLeft, false = shooterRight. Pick the one that reads steadily. */
+    static final boolean SHOOTER_SPEED_FROM_LEFT = true;
     static final double SHOOTER_TICKS_PER_REV = 28.0;   // bare goBILDA Yellow Jacket motor
+    /** Roughly the speed at full power. It only sets the first guess at the power; the encoder corrects the rest. */
     static final double SHOOTER_MAX_RPM = 6000.0;
     /**
-     * Speed-hold tuning. These are the values the FTC software itself uses for a bare 6000 rpm motor with
-     * a 28-tick encoder: F = 32767 / (max ticks per second), P = F / 10, I = P / 10. The I part is what
-     * keeps pushing until the wheel really reaches the speed, whatever the friction. If the speed
-     * recovers too slowly after a shot, raise P (and I with it) a step at a time.
+     * Speed-hold tuning. Power = (speed wanted / max speed) + KP x (how far short it is, as a share of max
+     * speed) + KI x (that shortfall added up over time). Raise KP if it is slow to recover after a ball;
+     * lower it if the speed hunts up and down.
      */
-    static final double SHOOTER_P = 1.17, SHOOTER_I = 0.117, SHOOTER_D = 0.0, SHOOTER_F = 11.7;
+    static final double SHOOTER_KP = 5.0, SHOOTER_KI = 2.0;
     /** Flywheel speed for shots by hand when the OpMode starts. Y and A change it. */
     static final double MANUAL_RPM = 1400.0;
     /**
@@ -146,6 +152,8 @@ public class CameraShooterTeleOp extends OpMode {
     private VisionPortal visionPortal;
     private AprilTagProcessor aprilTag;
     private final List<String> missing = new ArrayList<>();
+    private double speedSum = 0.0, speedSeenAt = 0.0;
+    private boolean speedBlind = false;
 
     private double turret = TURRET_CENTER, hood = 0.5, manualRpm = MANUAL_RPM;
     private boolean flywheelOn = false, autoAim = false, nectarMode = false;
@@ -167,12 +175,7 @@ public class CameraShooterTeleOp extends OpMode {
         for (DcMotorEx m : new DcMotorEx[]{shooterLeft, shooterRight}) {
             if (m == null) continue;
             m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-            if (SHOOTER_HOLD_SPEED) {
-                m.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                m.setVelocityPIDFCoefficients(SHOOTER_P, SHOOTER_I, SHOOTER_D, SHOOTER_F);
-            } else {
-                m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            }
+            m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);   // the code below holds the speed, not the hub
         }
 
         turretServo = servo("turretServo");
@@ -286,21 +289,16 @@ public class CameraShooterTeleOp extends OpMode {
         if (nectarMode) targetRpm *= NECTAR_SPEED_FACTOR;
         double commandedRpm = flywheelOn ? targetRpm : 0.0;
 
-        double actualRpm = 0.0;
         DcMotorEx[] shooters = {shooterLeft, shooterRight};
-        double[] motorRpm = new double[2];   // each motor's own speed: + = the way it is told to turn
+        double[] motorRpm = new double[2];   // each motor's own reading: + = the way it is told to turn
         for (int i = 0; i < 2; i++) {
-            DcMotorEx m = shooters[i];
-            if (m == null) continue;
-            if (SHOOTER_HOLD_SPEED) m.setVelocity(commandedRpm / 60.0 * SHOOTER_TICKS_PER_REV);   // ticks per second
-            else m.setPower(commandedRpm / SHOOTER_MAX_RPM);
-            motorRpm[i] = m.getVelocity() / SHOOTER_TICKS_PER_REV * 60.0;
+            if (shooters[i] != null) motorRpm[i] = shooters[i].getVelocity() / SHOOTER_TICKS_PER_REV * 60.0;
         }
-        // The hub measures speed in steps of about 43 rpm with these encoders, so the two readings often
-        // differ by one step. Their average is the best figure for the flywheel.
-        if (shooterLeft != null && shooterRight != null && Math.abs(motorRpm[0]) > 1 && Math.abs(motorRpm[1]) > 1)
-            actualRpm = (Math.abs(motorRpm[0]) + Math.abs(motorRpm[1])) / 2.0;
-        else actualRpm = Math.max(Math.abs(motorRpm[0]), Math.abs(motorRpm[1]));
+        // The flywheel's speed comes from one encoder, and both motors get the same power.
+        double actualRpm = Math.abs(motorRpm[SHOOTER_SPEED_FROM_LEFT ? 0 : 1]);
+        double shooterPower = flywheelPower(commandedRpm, actualRpm, now, dt);
+        power(shooterLeft, shooterPower);
+        power(shooterRight, shooterPower);
         // How far a ball pulls the speed down: the lowest reading in the last three seconds.
         if (now - dipSeenAt > 3.0 || actualRpm < dipRpm) {
             if (actualRpm < dipRpm || now - dipSeenAt > 3.0) dipSeenAt = now;
@@ -310,23 +308,26 @@ public class CameraShooterTeleOp extends OpMode {
         if (commandedRpm < 300.0) flywheelOnSince = now;
         String problem = "";
         if (now - flywheelOnSince > 1.0 && shooterLeft != null && shooterRight != null) {
-            boolean leftTurns = Math.abs(motorRpm[0]) > 150.0, rightTurns = Math.abs(motorRpm[1]) > 150.0;
-            if (motorRpm[0] * motorRpm[1] < 0 && leftTurns && rightTurns)
-                problem = "THE TWO MOTORS PUSH AGAINST EACH OTHER: change REVERSE_SHOOTER_RIGHT to " + !REVERSE_SHOOTER_RIGHT;
-            else if (!leftTurns && !rightTurns)
-                problem = "NOT TURNING: the motors fight each other (change REVERSE_SHOOTER_RIGHT to " + !REVERSE_SHOOTER_RIGHT + "), or no encoder cable is plugged in, or it is jammed";
-            else if (leftTurns != rightTurns)
-                problem = (leftTurns ? "shooterRight" : "shooterLeft") + " READS 0: its encoder cable is not plugged in (or set SHOOTER_HOLD_SPEED to false)";
-            else if (motorRpm[0] < 0)
-                problem = "TURNING BACKWARDS: change both REVERSE_SHOOTER_... settings";
+            String chosen = SHOOTER_SPEED_FROM_LEFT ? "shooterLeft" : "shooterRight";
+            double mine = motorRpm[SHOOTER_SPEED_FROM_LEFT ? 0 : 1], other = motorRpm[SHOOTER_SPEED_FROM_LEFT ? 1 : 0];
+            boolean mineTurns = Math.abs(mine) > 150.0, otherTurns = Math.abs(other) > 150.0;
+            if (!mineTurns && !otherTurns)
+                problem = "NOT TURNING: jammed, or the two motors push against each other (flip ONE of the REVERSE_SHOOTER_... settings)";
+            else if (!mineTurns)
+                problem = chosen + " READS 0 but the other motor turns: its encoder cable is out. Change SHOOTER_SPEED_FROM_LEFT to " + !SHOOTER_SPEED_FROM_LEFT;
+            else if (mine < 0)
+                problem = "TURNING BACKWARDS: flip both REVERSE_SHOOTER_... settings";
+            else if (otherTurns && Math.abs(Math.abs(other) - Math.abs(mine)) > 0.15 * Math.abs(mine))
+                problem = "THE TWO MOTORS SHOW DIFFERENT SPEEDS. On one shaft they must be equal: an encoder is faulty, or something between them slips";
             else if (actualRpm < 0.7 * commandedRpm && commandedRpm < 4000.0)
-                problem = "TOO SLOW: it cannot reach the speed. Take the balls out and try again; if it is still slow, something is rubbing";
+                problem = "TOO SLOW: it cannot reach the speed. Take the balls out; if it is still slow, something is rubbing or the battery is low";
         }
+        if (speedBlind && SHOOTER_HOLD_SPEED) problem = "NO SPEED READING for a moment (jam, or encoder cable): running on plain power until X is pressed off and on. " + problem;
 
         // ---- feeders and gate ----
         boolean shoot = gamepad1.right_trigger > 0.3;
         boolean feedUp = gamepad1.left_trigger > 0.3;
-        boolean speedReady = flywheelOn && (!SHOOTER_HOLD_SPEED || Math.abs(actualRpm - targetRpm) <= SPEED_TOLERANCE * targetRpm);
+        boolean speedReady = flywheelOn && (!SHOOTER_HOLD_SPEED || speedBlind || Math.abs(actualRpm - targetRpm) <= SPEED_TOLERANCE * targetRpm);
         boolean aimReady = !autoAim || (cellKnown && Math.abs(cellBearing) <= AIM_TOLERANCE_DEG);
         boolean fire = shoot && speedReady && aimReady;
         // With a gate the feeders may run while it is shut (the balls wait at the neck). Without one, the
@@ -338,7 +339,7 @@ public class CameraShooterTeleOp extends OpMode {
 
         // ---- Driver Station ----
         telemetry.addData("Flywheel (X)", "%s   %.0f of %.0f rpm (%s)%s", flywheelOn ? "ON" : "OFF", actualRpm, commandedRpm, shotNote, nectarMode ? "  NECTAR" : "");
-        telemetry.addData("Each motor", "shooterLeft %+.0f rpm   shooterRight %+.0f rpm", motorRpm[0], motorRpm[1]);
+        telemetry.addData("Each motor", "shooterLeft %+.0f rpm   shooterRight %+.0f rpm   power %.0f %%", motorRpm[0], motorRpm[1], shooterPower * 100.0);
         telemetry.addData("Slowest in the last 3 s", "%.0f rpm  (how far a ball pulled it down; 0 = it stalled)", dipRpm);
         if (!problem.isEmpty()) telemetry.addData("FLYWHEEL PROBLEM", problem);
         telemetry.addData("Auto-aim", autoAim ? "ON" : "off");
@@ -356,6 +357,28 @@ public class CameraShooterTeleOp extends OpMode {
     @Override
     public void stop() {
         if (visionPortal != null) visionPortal.close();
+    }
+
+    /**
+     * The power for BOTH shooter motors that brings the flywheel to `wantedRpm` and keeps it there.
+     * If the encoder shows nothing for a moment while power is on (a jam, or its cable is out), it stops
+     * trusting it and falls back to plain power, so a dead encoder can never send the motors to full speed.
+     */
+    private double flywheelPower(double wantedRpm, double measuredRpm, double now, double dt) {
+        if (wantedRpm <= 0.0) {
+            speedSum = 0.0;
+            speedBlind = false;
+            speedSeenAt = now;
+            return 0.0;
+        }
+        double base = Math.min(1.0, wantedRpm / SHOOTER_MAX_RPM);
+        if (measuredRpm > 0.1 * wantedRpm) speedSeenAt = now;
+        if (now - speedSeenAt > 0.7) speedBlind = true;
+        if (!SHOOTER_HOLD_SPEED || speedBlind) return base;
+        double shortfall = (wantedRpm - measuredRpm) / SHOOTER_MAX_RPM;
+        // Only add up the shortfall once the speed is close, so spinning up from rest does not overshoot.
+        if (Math.abs(shortfall) < 0.03) speedSum = Math.max(-0.15, Math.min(0.15, speedSum + shortfall * dt));
+        return Math.max(0.0, Math.min(1.0, base + SHOOTER_KP * shortfall + SHOOTER_KI * speedSum));
     }
 
     /** Hood (0..1) and flywheel rpm for a distance, blended between the two nearest rows of the table. */

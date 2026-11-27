@@ -68,21 +68,25 @@ public class BiobuzzTeleOp extends OpMode {
     static final boolean REVERSE_SHOOTER_LEFT = true;
     static final boolean REVERSE_SHOOTER_RIGHT = false;
     /**
-     * true = the hub holds the flywheel speed (RUN_USING_ENCODER). Every ball slows the wheels (a nectar
-     * three times as much as a pollen) and the hub pushes at full voltage to get the speed back; with
-     * plain power a stream of shots gets weaker and weaker. BOTH shooter motors need their encoder
-     * cables plugged in. If one is missing, set this to false.
+     * How the flywheel speed is held. The two shooter motors turn the same wheels, so the hub must NOT
+     * control each one's speed by itself: the two controllers pull against each other (seen on the real
+     * robot: one motor at 0 and then at 3000 rpm, the battery sagging, a grinding sound). Instead the
+     * code measures the speed with ONE encoder and gives BOTH motors the same power.
+     *   true  = hold the speed. Needs the encoder cable of the motor chosen in SHOOTER_SPEED_FROM_LEFT.
+     *   false = plain power, no encoder needed. A stream of shots then gets weaker and weaker.
      */
     static final boolean SHOOTER_HOLD_SPEED = true;
+    /** Whose encoder measures the flywheel: true = shooterLeft, false = shooterRight. Pick the one that reads steadily. */
+    static final boolean SHOOTER_SPEED_FROM_LEFT = true;
     static final double SHOOTER_TICKS_PER_REV = 28.0;   // bare goBILDA Yellow Jacket motor
+    /** Roughly the speed at full power. It only sets the first guess at the power; the encoder corrects the rest. */
     static final double SHOOTER_MAX_RPM = 6000.0;
     /**
-     * Speed-hold tuning. These are the values the FTC software itself uses for a bare 6000 rpm motor with
-     * a 28-tick encoder: F = 32767 / (max ticks per second), P = F / 10, I = P / 10. The I part is what
-     * keeps pushing until the wheel really reaches the speed, whatever the friction. If the speed
-     * recovers too slowly after a shot, raise P (and I with it) a step at a time.
+     * Speed-hold tuning. Power = (speed wanted / max speed) + KP x (how far short it is, as a share of max
+     * speed) + KI x (that shortfall added up over time). Raise KP if it is slow to recover after a ball;
+     * lower it if the speed hunts up and down.
      */
-    static final double SHOOTER_P = 1.17, SHOOTER_I = 0.117, SHOOTER_D = 0.0, SHOOTER_F = 11.7;
+    static final double SHOOTER_KP = 5.0, SHOOTER_KI = 2.0;
     /** Flywheel speed for shots by hand (auto-aim off). Change it live with the second gamepad's D-pad. */
     static final double MANUAL_RPM = 1400.0;
     /** A nectar needs the flywheel about this much faster than a pollen for the same shot. */
@@ -178,6 +182,8 @@ public class BiobuzzTeleOp extends OpMode {
     private VisionPortal visionPortal;
     private AprilTagProcessor aprilTag;
     private final List<String> missing = new ArrayList<>();
+    private double speedSum = 0.0, speedSeenAt = 0.0;
+    private boolean speedBlind = false;
     private GoBildaPinpointDriver pinpoint;
     private double odoX, odoY, odoHeading, odoTime, speedInPerS;
 
@@ -209,12 +215,7 @@ public class BiobuzzTeleOp extends OpMode {
         for (DcMotorEx m : new DcMotorEx[]{shooterLeft, shooterRight}) {
             if (m == null) continue;
             m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-            if (SHOOTER_HOLD_SPEED) {
-                m.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                m.setVelocityPIDFCoefficients(SHOOTER_P, SHOOTER_I, SHOOTER_D, SHOOTER_F);
-            } else {
-                m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            }
+            m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);   // the code below holds the speed, not the hub
         }
 
         turretServo = servo("turretServo");
@@ -384,23 +385,17 @@ public class BiobuzzTeleOp extends OpMode {
         set(hoodServo, HOOD_FLAT + hood * (HOOD_STEEP - HOOD_FLAT));
         if (nectarMode) targetRpm *= NECTAR_SPEED_FACTOR;
 
-        // The hub measures speed in steps of about 43 rpm with these encoders, so the two motors often
-        // read one step apart. Their average is the best figure for the flywheel.
-        double actualRpm = 0.0;
-        int reading = 0;
-        for (DcMotorEx m : new DcMotorEx[]{shooterLeft, shooterRight}) {
-            if (m == null) continue;
-            if (SHOOTER_HOLD_SPEED) m.setVelocity(targetRpm / 60.0 * SHOOTER_TICKS_PER_REV);   // ticks per second
-            else m.setPower(targetRpm / SHOOTER_MAX_RPM);
-            double rpm = Math.abs(m.getVelocity()) / SHOOTER_TICKS_PER_REV * 60.0;
-            if (rpm > 1) { actualRpm += rpm; reading++; }
-        }
-        if (reading > 0) actualRpm /= reading;
+        // The flywheel's speed comes from one encoder, and both shooter motors get the same power.
+        DcMotorEx speedMotor = SHOOTER_SPEED_FROM_LEFT ? shooterLeft : shooterRight;
+        double actualRpm = speedMotor == null ? 0.0 : Math.abs(speedMotor.getVelocity()) / SHOOTER_TICKS_PER_REV * 60.0;
+        double shooterPower = flywheelPower(targetRpm, actualRpm, now, dt);
+        power(shooterLeft, shooterPower);
+        power(shooterRight, shooterPower);
 
         // ---- intake, feeders, gate ----
         boolean shoot = gamepad1.right_trigger > 0.3;
         boolean intake = gamepad1.left_trigger > 0.3;
-        boolean speedReady = !SHOOTER_HOLD_SPEED || Math.abs(actualRpm - targetRpm) <= SPEED_TOLERANCE * targetRpm;
+        boolean speedReady = !SHOOTER_HOLD_SPEED || speedBlind || Math.abs(actualRpm - targetRpm) <= SPEED_TOLERANCE * targetRpm;
         boolean aimReady = !autoAim || (cellKnown && Math.abs(cellBearing) <= AIM_TOLERANCE_DEG);
         boolean fire = shoot && speedReady && aimReady;
         // With a gate the feeders may run while it is shut (the balls wait at the neck). Without one, the
@@ -427,6 +422,7 @@ public class BiobuzzTeleOp extends OpMode {
         telemetry.addData("Turret / hood", "%.3f / %.2f", turret, hood);
         if (turretAtEnd) telemetry.addData("TURRET AT ITS END", cellBearing > 0 ? "turn the robot LEFT" : "turn the robot RIGHT");
         telemetry.addData("Flywheel", "%.0f of %.0f rpm (%s)%s", actualRpm, targetRpm, shotNote, nectarMode ? "  NECTAR" : "");
+        if (speedBlind && SHOOTER_HOLD_SPEED) telemetry.addData("FLYWHEEL", "no speed reading (jam, or encoder cable): running on plain power");
         telemetry.addData("Shot", fire ? "FIRING" : !shoot ? (speedReady && aimReady ? "ready" : "not ready") : !speedReady ? "waiting for the flywheel" : "waiting for the aim");
         if (pinpoint != null) {
             telemetry.addData("Position", "x %.1f in  y %.1f in  facing %.1f deg", odoX, odoY, odoHeading);
@@ -439,6 +435,28 @@ public class BiobuzzTeleOp extends OpMode {
     @Override
     public void stop() {
         if (visionPortal != null) visionPortal.close();
+    }
+
+    /**
+     * The power for BOTH shooter motors that brings the flywheel to `wantedRpm` and keeps it there.
+     * If the encoder shows nothing for a moment while power is on (a jam, or its cable is out), it stops
+     * trusting it and falls back to plain power, so a dead encoder can never send the motors to full speed.
+     */
+    private double flywheelPower(double wantedRpm, double measuredRpm, double now, double dt) {
+        if (wantedRpm <= 0.0) {
+            speedSum = 0.0;
+            speedBlind = false;
+            speedSeenAt = now;
+            return 0.0;
+        }
+        double base = Math.min(1.0, wantedRpm / SHOOTER_MAX_RPM);
+        if (measuredRpm > 0.1 * wantedRpm) speedSeenAt = now;
+        if (now - speedSeenAt > 0.7) speedBlind = true;
+        if (!SHOOTER_HOLD_SPEED || speedBlind) return base;
+        double shortfall = (wantedRpm - measuredRpm) / SHOOTER_MAX_RPM;
+        // Only add up the shortfall once the speed is close, so spinning up from rest does not overshoot.
+        if (Math.abs(shortfall) < 0.03) speedSum = Math.max(-0.15, Math.min(0.15, speedSum + shortfall * dt));
+        return Math.max(0.0, Math.min(1.0, base + SHOOTER_KP * shortfall + SHOOTER_KI * speedSum));
     }
 
     /** Hood (0..1) and flywheel rpm for a distance, blended between the two nearest rows of the table. */
