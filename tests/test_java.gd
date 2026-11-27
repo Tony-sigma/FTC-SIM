@@ -190,6 +190,12 @@ func _run() -> void:
 	await steps(60)
 	var p4: Vector3 = robot.get_pose_ftc()
 	check("field-centric: right still goes to the driver's right", p4.y - p3.y < -8.0 and absf(p4.x - p3.x) < 3.0, "moved %.1f, %.1f in" % [p4.x - p3.x, p4.y - p3.y])
+	# Odometry (goBILDA Pinpoint): position counted from where the robot stood at INIT, X forward, Y left.
+	var odo := RegEx.new()
+	odo.compile("Position : x (-?[0-9.]+) in  y (-?[0-9.]+) in  facing (-?[0-9.]+) deg")
+	var seen := odo.search(bridge.telemetry)
+	check("odometry shows how far the robot has gone since INIT", seen != null and absf(float(seen.get_string(1)) - (p4.x - p0.x)) < 0.5 and absf(float(seen.get_string(2)) - (p4.y - p0.y)) < 0.5 and absf(float(seen.get_string(3)) - p4.z) < 1.0,
+		"%s | robot really moved %.1f, %.1f in and faces %.1f" % [seen.get_string(0) if seen != null else bridge.telemetry.strip_edges().replace("\n", " | "), p4.x - p0.x, p4.y - p0.y, p4.z])
 	key(KEY_1, true)
 	await steps(10)
 	key(KEY_1, false)

@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -8,9 +9,11 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 
 /**
- * Only the chassis and the two lever servos. Nothing else on the robot is touched.
+ * Only the chassis, the two lever servos and the odometry readout. Nothing else on the robot is touched.
  *
  *   Left stick   drive / strafe          Right stick   turn
  *   Left bumper  slow mode (hold)
@@ -21,6 +24,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
  *   motors  frontLeft, frontRight, backLeft, backRight
  *   servos  leverLeft (front lever), leverRight (back lever)
  *   the Control Hub's built-in IMU, called "imu" (only needed for field-centric driving)
+ *   the goBILDA Pinpoint odometry computer, called "pinpoint" (optional: shows position and speed)
  */
 @TeleOp(name = "Chassis + Levers", group = "Biobuzz")
 public class ChassisLeversTeleOp extends OpMode {
@@ -41,11 +45,22 @@ public class ChassisLeversTeleOp extends OpMode {
     static final double LEVER_FRONT_IN = 0.0, LEVER_FRONT_OUT = 1.0;
     static final double LEVER_BACK_IN = 0.0, LEVER_BACK_OUT = 1.0;
 
+    // ---- Odometry: goBILDA Pinpoint + two 4-Bar pods (check with "Test: Odometry", then copy its numbers here) ----
+    static final String PINPOINT_NAME = "pinpoint";
+    /** How far LEFT of the robot's centre the forward (X) pod is, in mm. Right of centre = negative. From the CAD. */
+    static final double X_POD_OFFSET_MM = -131.0;
+    /** How far FORWARD of the robot's centre the sideways (Y) pod is, in mm. Behind the centre = negative. From the CAD. */
+    static final double Y_POD_OFFSET_MM = -88.8;
+    static final GoBildaPinpointDriver.EncoderDirection X_POD_DIRECTION = GoBildaPinpointDriver.EncoderDirection.FORWARD;
+    static final GoBildaPinpointDriver.EncoderDirection Y_POD_DIRECTION = GoBildaPinpointDriver.EncoderDirection.FORWARD;
+
     // ==================================================================================
 
     private DcMotor frontLeft, frontRight, backLeft, backRight;
     private Servo leverFront, leverBack;
     private IMU imu;
+    private GoBildaPinpointDriver pinpoint;
+    private double odoX, odoY, odoHeading, odoTime, speedInPerS;
 
     private boolean fieldCentric = true, leverFrontOut = false, leverBackOut = false;
     private boolean lastA, lastB, lastY;
@@ -71,6 +86,16 @@ public class ChassisLeversTeleOp extends OpMode {
         if (imu != null) {
             imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(HUB_LOGO, HUB_USB)));
             imu.resetYaw();
+        }
+
+        // Odometry. Position 0, 0 and heading 0 are where the robot stands when INIT is pressed:
+        // X counts inches forward from there, Y inches to the left. Keep the robot still during INIT.
+        pinpoint = hardwareMap.tryGet(GoBildaPinpointDriver.class, PINPOINT_NAME);
+        if (pinpoint != null) {
+            pinpoint.setOffsets(X_POD_OFFSET_MM, Y_POD_OFFSET_MM, DistanceUnit.MM);
+            pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+            pinpoint.setEncoderDirections(X_POD_DIRECTION, Y_POD_DIRECTION);
+            pinpoint.resetPosAndIMU();
         }
 
         telemetry.addData("Status", "Ready. Press start.");
@@ -104,6 +129,19 @@ public class ChassisLeversTeleOp extends OpMode {
         backLeft.setPower((forward - strafe + turn) / biggest * scale);
         backRight.setPower((forward + strafe - turn) / biggest * scale);
 
+        // ---- odometry: where the robot is and how fast it is going ----
+        if (pinpoint != null) {
+            pinpoint.update();   // must be called every loop, or the numbers never change
+            Pose2D pose = pinpoint.getPosition();
+            double x = pose.getX(DistanceUnit.INCH), y = pose.getY(DistanceUnit.INCH);
+            double time = getRuntime();
+            if (odoTime > 0 && time > odoTime) speedInPerS = Math.hypot(x - odoX, y - odoY) / (time - odoTime);
+            odoX = x;
+            odoY = y;
+            odoHeading = pose.getHeading(AngleUnit.DEGREES);
+            odoTime = time;
+        }
+
         // ---- levers: each press flips one between in and out ----
         if (gamepad1.a && !lastA) leverFrontOut = !leverFrontOut;
         if (gamepad1.b && !lastB) leverBackOut = !leverBackOut;
@@ -117,6 +155,12 @@ public class ChassisLeversTeleOp extends OpMode {
         telemetry.addData("Heading", "%.1f deg", Math.toDegrees(heading));
         telemetry.addData("Front lever (A)", leverFront == null ? "leverLeft NOT in the configuration" : leverFrontOut ? "OUT" : "in");
         telemetry.addData("Back lever (B)", leverBack == null ? "leverRight NOT in the configuration" : leverBackOut ? "OUT" : "in");
+        if (pinpoint == null) {
+            telemetry.addData("Odometry", "\"" + PINPOINT_NAME + "\" NOT in the configuration");
+        } else {
+            telemetry.addData("Position", "x %.1f in  y %.1f in  facing %.1f deg", odoX, odoY, odoHeading);
+            telemetry.addData("Speed", "%.1f in/s  (odometry %s)", speedInPerS, pinpoint.getDeviceStatus());
+        }
         if (imu == null) telemetry.addData("IMU", "\"imu\" NOT in the configuration: robot-centric only");
     }
 }

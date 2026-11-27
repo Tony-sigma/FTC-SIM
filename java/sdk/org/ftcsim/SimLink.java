@@ -28,6 +28,8 @@ public class SimLink {
     private volatile List<String> camNames = new ArrayList<>();
     private volatile double[] camPose = {0, 0, 0};
     private volatile String cameraName = "Webcam 1";
+    private volatile String pinpointName = "pinpoint";
+    private volatile double[] pinpointPose = {0, 0, 0};
 
     private final Map<String, Double> motorsOut = new ConcurrentHashMap<>();
     private final Map<String, Double> servosOut = new ConcurrentHashMap<>();
@@ -70,6 +72,9 @@ public class SimLink {
                     for (Object o : Json.list(m.get("servos"))) servos.add(String.valueOf(o));
                     motorMaxTps = max;
                     if (m.get("camera") != null) cameraName = String.valueOf(m.get("camera"));
+                    if (m.get("pinpoint") != null) pinpointName = String.valueOf(m.get("pinpoint"));
+                    List<Object> pose0 = Json.list(m.get("pose"));
+                    if (pose0.size() >= 3) pinpointPose = new double[]{Json.num(pose0.get(0)), Json.num(pose0.get(1)), Json.num(pose0.get(2))};
                     servoNames = servos;
                     helloSeen = true;
                 } else {
@@ -77,6 +82,8 @@ public class SimLink {
                     List<Object> imu = Json.list(m.get("imu"));
                     if (imu.size() >= 2) { yawDeg = Json.num(imu.get(0)); yawRateDeg = Json.num(imu.get(1)); }
                     simTime = Json.num(m.get("t"));
+                    List<Object> pp = Json.list(m.get("pinpoint"));
+                    if (pp.size() >= 3) pinpointPose = new double[]{Json.num(pp.get(0)), Json.num(pp.get(1)), Json.num(pp.get(2))};
                     List<double[]> tags = new ArrayList<>();
                     List<String> tagNames = new ArrayList<>();
                     for (Object o : Json.list(m.get("tags"))) {
@@ -187,6 +194,9 @@ public class SimLink {
     /** Robot pose worked out from the tags: {x m, y m, heading deg}. */
     public double[] cameraRobotPose() { return camPose; }
     public String cameraName() { return cameraName; }
+    public String pinpointName() { return pinpointName; }
+    /** Where the robot really is on the field, for the simulated odometry computer: {x in, y in, heading deg}. */
+    public double[] pinpointPose() { return pinpointPose; }
     public long packetCount() { synchronized (packetLock) { return packets; } }
     public Set<String> motorNames() { return motorMaxTps.keySet(); }
     public List<String> servoNames() { return servoNames; }

@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -10,6 +11,8 @@ import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagClusterDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
@@ -109,6 +112,15 @@ public class BiobuzzTeleOp extends OpMode {
     static final double LEVER_FRONT_IN = 0.0, LEVER_FRONT_OUT = 1.0;
     static final double LEVER_BACK_IN = 0.0, LEVER_BACK_OUT = 1.0;
 
+    // ---- Odometry: goBILDA Pinpoint + two 4-Bar pods (check with "Test: Odometry", then copy its numbers here) ----
+    static final String PINPOINT_NAME = "pinpoint";
+    /** How far LEFT of the robot's centre the forward (X) pod is, in mm. Right of centre = negative. From the CAD. */
+    static final double X_POD_OFFSET_MM = -131.0;
+    /** How far FORWARD of the robot's centre the sideways (Y) pod is, in mm. Behind the centre = negative. From the CAD. */
+    static final double Y_POD_OFFSET_MM = -88.8;
+    static final GoBildaPinpointDriver.EncoderDirection X_POD_DIRECTION = GoBildaPinpointDriver.EncoderDirection.FORWARD;
+    static final GoBildaPinpointDriver.EncoderDirection Y_POD_DIRECTION = GoBildaPinpointDriver.EncoderDirection.FORWARD;
+
     // ---- Camera on the shooter ----
     static final String CAMERA_NAME = "Webcam 1";
     /** An Arducam needs its lens calibration for a correct distance. Fill these in and set the switch to true. */
@@ -148,6 +160,8 @@ public class BiobuzzTeleOp extends OpMode {
     private VisionPortal visionPortal;
     private AprilTagProcessor aprilTag;
     private final List<String> missing = new ArrayList<>();
+    private GoBildaPinpointDriver pinpoint;
+    private double odoX, odoY, odoHeading, odoTime, speedInPerS;
 
     private double turret = TURRET_CENTER, hood = 0.5, manualRpm = MANUAL_RPM;
     private boolean fieldCentric = true, autoAim = false, nectarMode = false;
@@ -199,6 +213,18 @@ public class BiobuzzTeleOp extends OpMode {
             imu.resetYaw();
         }
 
+        // Odometry. Position 0, 0 and heading 0 are where the robot stands when INIT is pressed:
+        // X counts inches forward from there, Y inches to the left. Keep the robot still during INIT.
+        pinpoint = hardwareMap.tryGet(GoBildaPinpointDriver.class, PINPOINT_NAME);
+        if (pinpoint == null) {
+            missing.add(PINPOINT_NAME);
+        } else {
+            pinpoint.setOffsets(X_POD_OFFSET_MM, Y_POD_OFFSET_MM, DistanceUnit.MM);
+            pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+            pinpoint.setEncoderDirections(X_POD_DIRECTION, Y_POD_DIRECTION);
+            pinpoint.resetPosAndIMU();
+        }
+
         // The camera on the shooter, looking for the AprilTags under the hive cells.
         WebcamName webcam = hardwareMap.tryGet(WebcamName.class, CAMERA_NAME);
         if (webcam == null) {
@@ -242,6 +268,19 @@ public class BiobuzzTeleOp extends OpMode {
         power(frontRight, (forward - strafe - turn) / biggest * scale);
         power(backLeft, (forward - strafe + turn) / biggest * scale);
         power(backRight, (forward + strafe - turn) / biggest * scale);
+
+        // ---- odometry: where the robot is and how fast it is going ----
+        if (pinpoint != null) {
+            pinpoint.update();   // must be called every loop, or the numbers never change
+            Pose2D pose = pinpoint.getPosition();
+            double x = pose.getX(DistanceUnit.INCH), y = pose.getY(DistanceUnit.INCH);
+            double time = getRuntime();
+            if (odoTime > 0 && time > odoTime) speedInPerS = Math.hypot(x - odoX, y - odoY) / (time - odoTime);
+            odoX = x;
+            odoY = y;
+            odoHeading = pose.getHeading(AngleUnit.DEGREES);
+            odoTime = time;
+        }
 
         // ---- camera: find our raised cell ----
         // Each hive cell has a cluster of four AprilTags, and the SDK reports a cluster as one detection
@@ -361,6 +400,10 @@ public class BiobuzzTeleOp extends OpMode {
         if (turretAtEnd) telemetry.addData("TURRET AT ITS END", cellBearing > 0 ? "turn the robot LEFT" : "turn the robot RIGHT");
         telemetry.addData("Flywheel", "%.0f of %.0f rpm (%s)%s", actualRpm, targetRpm, shotNote, nectarMode ? "  NECTAR" : "");
         telemetry.addData("Shot", fire ? "FIRING" : !shoot ? (speedReady && aimReady ? "ready" : "not ready") : !speedReady ? "waiting for the flywheel" : "waiting for the aim");
+        if (pinpoint != null) {
+            telemetry.addData("Position", "x %.1f in  y %.1f in  facing %.1f deg", odoX, odoY, odoHeading);
+            telemetry.addData("Speed", "%.1f in/s  (odometry %s)", speedInPerS, pinpoint.getDeviceStatus());
+        }
         if (frontLeft != null) telemetry.addData("Front left encoder", frontLeft.getCurrentPosition());
         if (!missing.isEmpty()) telemetry.addData("NOT in this configuration", missing);
     }

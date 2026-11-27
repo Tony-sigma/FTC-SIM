@@ -209,6 +209,8 @@
   "odometry": {
     "_note": "Two dead-wheel pods read as encoders. Offsets measured from the CAD (models/measurements.json). Wheel size and ticks are PLACEHOLDERS (goBILDA pod: 32 mm, 2000 ticks/rev).",
     "names": ["odoX", "odoY"],
+    "_pinpoint_note": "The real robot reads its two goBILDA 4-Bar pods (32 mm wheel) through a goBILDA Pinpoint odometry computer on an I2C port. A Java OpMode gets it with hardwareMap.get(GoBildaPinpointDriver.class, \"pinpoint\"). The simulated one is perfect: no wheel slip and no drift.",
+    "pinpoint_name": "pinpoint",
     "wheel_diameter_mm": 32.0,
     "ticks_per_rev": 2000.0,
     "forward_pod_left_offset_in": -5.159,

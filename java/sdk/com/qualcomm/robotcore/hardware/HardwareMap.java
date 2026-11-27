@@ -24,7 +24,7 @@ public class HardwareMap {
         if (dev == null) {
             throw new IllegalArgumentException("Unable to find a hardware device with name \"" + name + "\" and type "
                 + type.getSimpleName() + ". The simulated robot has motors " + link.motorNames() + ", servos "
-                + link.servoNames() + ", a webcam (WebcamName) called \"" + link.cameraName() + "\" and an IMU (any name). Names come from robot_config.json.");
+                + link.servoNames() + ", a webcam (WebcamName) called \"" + link.cameraName() + "\", a goBILDA Pinpoint called \"" + link.pinpointName() + "\" and an IMU (any name). Names come from robot_config.json.");
         }
         return dev;
     }
@@ -34,6 +34,7 @@ public class HardwareMap {
         if (dev == null) {
             if (type == IMU.class) dev = new org.ftcsim.SimIMU(link);
             else if (type.isAssignableFrom(org.ftcsim.SimWebcam.class) && link.cameraName().equals(name)) dev = new org.ftcsim.SimWebcam(link, name);
+            else if (type.isAssignableFrom(com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.class) && link.pinpointName().equals(name)) dev = new com.qualcomm.hardware.gobilda.GoBildaPinpointDriver(link);
             else if (type.isAssignableFrom(org.ftcsim.SimMotor.class) && link.motorNames().contains(name)) dev = new org.ftcsim.SimMotor(link, name);
             else if (type.isAssignableFrom(org.ftcsim.SimServo.class) && link.servoNames().contains(name)) dev = new org.ftcsim.SimServo(link, name);
             if (dev != null) devices.put(name, dev);

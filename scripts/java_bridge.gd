@@ -117,7 +117,9 @@ func _on_connect() -> void:
 		motors[name] = 0.0
 	var servos: Array = [_turret, _hood, _gate]
 	servos.append_array(_levers)
-	_send({"type": "hello", "motors": motors, "servos": servos, "camera": str(Config.value("camera.name", "Webcam 1"))})
+	var pose: Vector3 = robot.get_pose_ftc()
+	_send({"type": "hello", "motors": motors, "servos": servos, "camera": str(Config.value("camera.name", "Webcam 1")),
+		"pinpoint": str(Config.value("odometry.pinpoint_name", "pinpoint")), "pose": [pose.x, pose.y, pose.z]})
 
 func _on_disconnect() -> void:
 	_peer = null
@@ -208,6 +210,8 @@ func _state(dt: float) -> Dictionary:
 		"tags": tags, "campose": cam_pose,
 		"type": "state", "t": snappedf(match_time, 0.001), "start": _start, "stop": _stop, "motors": motors,
 		"imu": [snappedf(robot.get_pose_ftc().z, 0.001), snappedf(rad_to_deg(robot.omega), 0.01)],
+		# The goBILDA Pinpoint odometry computer: the simulated pods track the robot's real pose.
+		"pinpoint": [snappedf(robot.get_pose_ftc().x, 0.001), snappedf(robot.get_pose_ftc().y, 0.001), snappedf(robot.get_pose_ftc().z, 0.001)],
 		"gamepad1": _gamepad(0, true), "gamepad2": _gamepad(1, false),
 	}
 

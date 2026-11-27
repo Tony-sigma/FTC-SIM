@@ -73,7 +73,7 @@ You need a **JDK 11 or newer** installed (https://adoptium.net). Then, in the ru
 4. Press **R** (or Back) to stop it and get the built-in controls back.
 
 By default the TeamCode folder is `java/teamcode` in this project, which has two samples
-(`BiobuzzTeleOp`, `DriveSquareAuto`) and nine test OpModes, one per mechanism (see below). To use your real code, set `java.teamcode_dir` in
+(`BiobuzzTeleOp`, `DriveSquareAuto`) and ten test OpModes, one per mechanism (see below). To use your real code, set `java.teamcode_dir` in
 `robot_config.json` to your `TeamCode/src/main/java` folder. Nothing in your code changes: the sim
 provides stand-ins with the same names as the FTC SDK classes (`java/sdk`).
 
@@ -122,6 +122,11 @@ clusters in view right now.
 `ChassisLeversTeleOp` ("Chassis + Levers") is the small one: only the mecanum drive and the two lever
 servos, for when the rest of the robot is not built or wired yet.
 
+**Odometry:** the robot reads its two goBILDA 4-Bar pods through a goBILDA Pinpoint, configured as
+`pinpoint`. Both TeleOps show the position (inches forward and left of where the robot stood at INIT),
+heading and speed from it; nothing steers by it yet. The sim provides a stand-in for the SDK's
+`GoBildaPinpointDriver` with perfect pods (no slip, no drift).
+
 `BiobuzzTeleOp` is the full OpMode meant for the real robot. It uses the camera the way the FTC tech tip
 describes: right-stick click (T on the keyboard) makes the turret search for a cluster whose name
 starts with our colour and whose roll is the right way up, then keeps it centred using `bearing`.
@@ -158,6 +163,7 @@ A device that is missing from the robot configuration is reported on the screen,
 | Test: Shooter | `TestShooter.java` | Only the flywheel, at a power you step up slowly, showing each motor's rpm. Capped at 0.40. |
 | Test: Intake + Feeder | `TestIntakes.java` | Each intake with its feeder (one motor each) on its own trigger, with reverse. |
 | Test: Sensors | `TestSensors.java` | IMU heading and the encoders while you move the robot by hand. Nothing is powered. |
+| Test: Odometry | `TestOdometry.java` | The goBILDA Pinpoint and its two pods: status, X, Y and heading while you push the robot by hand, to check pod directions and offsets. |
 | Test: Camera | `TestCamera.java` | Lists the AprilTag clusters in view with range, bearing, and whether the cell can be scored in. |
 | Test: Any Servo | `TestServos.java` | A general servo tester for anything else, such as the gate. |
 

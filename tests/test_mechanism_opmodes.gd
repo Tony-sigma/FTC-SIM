@@ -123,6 +123,16 @@ func _run() -> void:
 	await steps(60)
 	check("heading follows the robot being turned by hand", bridge.telemetry.contains("Heading : 30.0 deg"), bridge.telemetry.strip_edges().replace("\n", " | "))
 
+	check("odometry test starts", await start("Test: Odometry"))
+	var o0: Vector3 = robot.get_pose_ftc()
+	check("odometry starts at zero and is ready", bridge.telemetry.contains("Status : READY") and bridge.telemetry.contains("X (forward) : 0.0 in") and bridge.telemetry.contains("Y (left) : 0.0 in"), bridge.telemetry.strip_edges().replace("\n", " | "))
+	robot.set_pose_ftc(o0.x + 24.0, o0.y, o0.z)   # as if someone pushed the robot one tile forward (it faces +x)
+	await steps(30)
+	check("pushed one tile forward: X reads 24", bridge.telemetry.contains("X (forward) : 24.0 in") and bridge.telemetry.contains("Y (left) : 0.0 in"), bridge.telemetry.strip_edges().replace("\n", " | "))
+	robot.set_pose_ftc(o0.x + 24.0, o0.y + 24.0, o0.z + 90.0)   # one tile to its left, then a quarter turn left
+	await steps(30)
+	check("pushed one tile left and turned left: Y reads 24, heading 90", bridge.telemetry.contains("X (forward) : 24.0 in") and bridge.telemetry.contains("Y (left) : 24.0 in") and bridge.telemetry.contains("Heading : 90.0 deg"), bridge.telemetry.strip_edges().replace("\n", " | "))
+
 	check("camera test starts", await start("Test: Camera"))
 	robot.aim_point = main.field.aim_point("red")
 	await steps(480)
