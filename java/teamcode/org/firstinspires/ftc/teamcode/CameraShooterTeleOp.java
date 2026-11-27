@@ -138,7 +138,7 @@ public class CameraShooterTeleOp extends OpMode {
     private double turret = TURRET_CENTER, hood = 0.5, manualRpm = MANUAL_RPM;
     private boolean flywheelOn = false, autoAim = false, nectarMode = false;
     private boolean lastX, lastY, lastA, lastRightStick, lastLeftStick;
-    private double sweepDirection = 1.0, lastLoopTime = 0.0;
+    private double sweepDirection = 1.0, lastLoopTime = 0.0, flywheelOnSince = 0.0;
     // What the camera last saw of our raised cell.
     private boolean seesCell = false;
     private double cellBearing = 0.0, cellDistance = 0.0, cellSeenAt = -10.0;
@@ -273,11 +273,31 @@ public class CameraShooterTeleOp extends OpMode {
         double commandedRpm = flywheelOn ? targetRpm : 0.0;
 
         double actualRpm = 0.0;
-        for (DcMotorEx m : new DcMotorEx[]{shooterLeft, shooterRight}) {
+        DcMotorEx[] shooters = {shooterLeft, shooterRight};
+        double[] motorRpm = new double[2];   // each motor's own speed: + = the way it is told to turn
+        for (int i = 0; i < 2; i++) {
+            DcMotorEx m = shooters[i];
             if (m == null) continue;
             if (SHOOTER_HOLD_SPEED) m.setVelocity(commandedRpm / 60.0 * SHOOTER_TICKS_PER_REV);   // ticks per second
             else m.setPower(commandedRpm / SHOOTER_MAX_RPM);
-            actualRpm = Math.max(actualRpm, Math.abs(m.getVelocity()) / SHOOTER_TICKS_PER_REV * 60.0);
+            motorRpm[i] = m.getVelocity() / SHOOTER_TICKS_PER_REV * 60.0;
+            actualRpm = Math.max(actualRpm, Math.abs(motorRpm[i]));
+        }
+        // What is wrong with the flywheel, if anything, once it has had a second to spin up.
+        if (commandedRpm < 300.0) flywheelOnSince = now;
+        String problem = "";
+        if (now - flywheelOnSince > 1.0 && shooterLeft != null && shooterRight != null) {
+            boolean leftTurns = Math.abs(motorRpm[0]) > 150.0, rightTurns = Math.abs(motorRpm[1]) > 150.0;
+            if (motorRpm[0] * motorRpm[1] < 0 && leftTurns && rightTurns)
+                problem = "THE TWO MOTORS PUSH AGAINST EACH OTHER: change REVERSE_SHOOTER_RIGHT to " + !REVERSE_SHOOTER_RIGHT;
+            else if (!leftTurns && !rightTurns)
+                problem = "NOT TURNING: the motors fight each other (change REVERSE_SHOOTER_RIGHT to " + !REVERSE_SHOOTER_RIGHT + "), or no encoder cable is plugged in, or it is jammed";
+            else if (leftTurns != rightTurns)
+                problem = (leftTurns ? "shooterRight" : "shooterLeft") + " READS 0: its encoder cable is not plugged in (or set SHOOTER_HOLD_SPEED to false)";
+            else if (motorRpm[0] < 0)
+                problem = "TURNING BACKWARDS: change both REVERSE_SHOOTER_... settings";
+            else if (actualRpm < 0.7 * commandedRpm)
+                problem = "TOO SLOW: it cannot reach the speed. Something is dragging, or the battery is low";
         }
 
         // ---- feeders and gate ----
@@ -295,6 +315,8 @@ public class CameraShooterTeleOp extends OpMode {
 
         // ---- Driver Station ----
         telemetry.addData("Flywheel (X)", "%s   %.0f of %.0f rpm (%s)%s", flywheelOn ? "ON" : "OFF", actualRpm, commandedRpm, shotNote, nectarMode ? "  NECTAR" : "");
+        telemetry.addData("Each motor", "shooterLeft %+.0f rpm   shooterRight %+.0f rpm", motorRpm[0], motorRpm[1]);
+        if (!problem.isEmpty()) telemetry.addData("FLYWHEEL PROBLEM", problem);
         telemetry.addData("Auto-aim", autoAim ? "ON" : "off");
         if (cellKnown) telemetry.addData("Camera", "%s  bearing %.1f  distance %.1f in  %d%% seen", cellName, cellBearing, cellDistance, cellPercent);
         else telemetry.addData("Camera", aprilTag == null ? "no camera" : "no scorable cell in view");
