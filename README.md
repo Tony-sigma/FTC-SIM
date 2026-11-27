@@ -129,6 +129,10 @@ servos, for when the rest of the robot is not built or wired yet.
 heading and speed from it; nothing steers by it yet. The sim provides a stand-in for the SDK's
 `GoBildaPinpointDriver` with perfect pods (no slip, no drift).
 
+`CameraShooterTeleOp` ("Camera + Shooter") is the other half: turret, hood, flywheel, feeders, gate
+and the camera, with no driving. The flywheel stays off until X is pressed, Y / A step its speed, and
+the screen shows a ready-made row for the shot table, so it is the tool for building that table.
+
 `BiobuzzTeleOp` is the full OpMode meant for the real robot. It uses the camera the way the FTC tech tip
 describes: right-stick click (T on the keyboard) makes the turret search for a cluster whose name
 starts with our colour and whose roll is the right way up, then keeps it centred using `bearing`.

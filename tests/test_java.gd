@@ -211,6 +211,52 @@ func _run() -> void:
 	main.reset_all()
 	await wait_for(func(): return not bridge.connected and not runner.is_running(), 5.0)
 
+	# ---- Camera + Shooter: turret, hood, flywheel, feeders and camera, no driving ----
+	main.reset_all()
+	await steps(10)
+	runner.launch("Camera + Shooter")
+	ok = await wait_for(func(): return bridge.connected and bridge.phase == "init", 60.0)
+	check("Camera + Shooter compiles, connects and waits in INIT", ok, runner.log_tail)
+	main._start_pressed()
+	ok = await wait_for(func(): return bridge.phase == "run", 5.0)
+	main.pollen.clear()
+	robot.set_pose_ftc(34, -50, 145)   # facing the red hive, as if the robot had been carried there
+	await steps(30)
+	var held0: int = robot.held_total()
+	key(KEY_SPACE, true)
+	await steps(90)
+	key(KEY_SPACE, false)
+	check("the flywheel is off until X is pressed, and nothing is fired", ok and robot.shooter_power == 0.0 and robot.shots_fired == 0 and robot.held_total() == held0 and bridge.telemetry.contains("flywheel is off (X)"), bridge.telemetry.strip_edges().replace("\n", " | "))
+	for k in [KEY_3, KEY_4, KEY_4]:   # X = on, Y twice = +50 rpm
+		key(k, true)
+		await steps(10)
+		key(k, false)
+		await steps(10)
+	await steps(120)
+	check("X turns the flywheel on, Y raises the speed by 25 rpm a press", absf(robot.flywheel_rpm() - 1450.0) < 30.0 and robot.velocity_hold, "%.0f rpm" % robot.flywheel_rpm())
+	key(KEY_T, true)
+	await steps(20)
+	key(KEY_T, false)
+	var cam2 = main.tag_camera
+	ok = await wait_for(func():
+		for t in cam2.tags:
+			if str(t["name"]).begins_with("RED") and absf(t["roll"]) < 90.0 and absf(t["tx"]) < 1.5:
+				return true
+		return false, 20.0)
+	check("auto-aim turns the turret onto our raised cell", ok, cam2.summary())
+	await steps(120)
+	check("it shows the row to copy into the shot table", bridge.telemetry.contains("Table row : {") and bridge.telemetry.contains("from the table"), bridge.telemetry.strip_edges().replace("\n", " | "))
+	var shots0: int = robot.shots_fired
+	var loaded: int = robot.held_total()
+	key(KEY_SPACE, true)
+	await steps(240)
+	key(KEY_SPACE, false)
+	await steps(240)
+	check("shoot puts the loaded pollen in the raised cell, and the wheels never move", robot.shots_fired - shots0 == loaded and main.field.cell_count("red", true) >= loaded - 1 and robot.wheel_powers == [0.0, 0.0, 0.0, 0.0],
+		"fired %d of %d, in cell %d" % [robot.shots_fired - shots0, loaded, main.field.cell_count("red", true)])
+	main.reset_all()
+	await wait_for(func(): return not bridge.connected and not runner.is_running(), 5.0)
+
 	print("\n%s" % ("ALL TESTS PASSED" if fails == 0 else "%d TEST(S) FAILED" % fails))
 	runner.stop()
 	quit(1 if fails > 0 else 0)
