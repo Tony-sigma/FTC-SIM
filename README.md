@@ -119,7 +119,10 @@ The sim does not process pictures: it works out from the robot and turret positi
 inside the camera's field of view, within range and facing it. The HUD line "Camera sees" shows the
 clusters in view right now.
 
-`BiobuzzTeleOp` is the OpMode meant for the real robot. It uses the camera the way the FTC tech tip
+`ChassisLeversTeleOp` ("Chassis + Levers") is the small one: only the mecanum drive and the two lever
+servos, for when the rest of the robot is not built or wired yet.
+
+`BiobuzzTeleOp` is the full OpMode meant for the real robot. It uses the camera the way the FTC tech tip
 describes: right-stick click (T on the keyboard) makes the turret search for a cluster whose name
 starts with our colour and whose roll is the right way up, then keeps it centred using `bearing`.
 While it is locked on, the hood and the flywheel speed come from a table in the file (distance to the

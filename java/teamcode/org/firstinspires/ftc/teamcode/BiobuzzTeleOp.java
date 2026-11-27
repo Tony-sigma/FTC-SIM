@@ -230,8 +230,9 @@ public class BiobuzzTeleOp extends OpMode {
         lastY = gamepad1.y;
         if (gamepad1.x && imu != null) imu.resetYaw();
         if (fieldCentric && imu != null) {
-            double f = forward * Math.cos(heading) + strafe * Math.sin(heading);
-            double s = -forward * Math.sin(heading) + strafe * Math.cos(heading);
+            // heading is counter-clockwise (left turn = positive), as the IMU reports it.
+            double f = forward * Math.cos(heading) - strafe * Math.sin(heading);
+            double s = forward * Math.sin(heading) + strafe * Math.cos(heading);
             forward = f;
             strafe = s;
         }
