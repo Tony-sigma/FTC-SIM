@@ -57,7 +57,9 @@ public class CameraShooterTeleOp extends OpMode {
     static final boolean REVERSE_INTAKE_B = false;
 
     // ---- Shooter (check with "Test: Shooter": both motors must turn the flywheel the SAME way) ----
-    static final boolean REVERSE_SHOOTER_LEFT = false;
+    // Found on the real robot (2026-11): left reversed, right not. With both the same the two motors
+    // fight; with them the other way round the flywheel spins backwards and pulls the balls back in.
+    static final boolean REVERSE_SHOOTER_LEFT = true;
     static final boolean REVERSE_SHOOTER_RIGHT = false;
     /**
      * true = the hub holds the flywheel speed (RUN_USING_ENCODER), so a stream of shots stays the same.
@@ -66,8 +68,13 @@ public class CameraShooterTeleOp extends OpMode {
     static final boolean SHOOTER_HOLD_SPEED = true;
     static final double SHOOTER_TICKS_PER_REV = 28.0;   // bare goBILDA Yellow Jacket motor
     static final double SHOOTER_MAX_RPM = 6000.0;
-    /** Speed-hold tuning, starting values: F = 32767 / (max ticks per second), then raise P until it recovers fast without buzzing. */
-    static final double SHOOTER_P = 10.0, SHOOTER_I = 0.0, SHOOTER_D = 0.0, SHOOTER_F = 11.7;
+    /**
+     * Speed-hold tuning. These are the values the FTC software itself uses for a bare 6000 rpm motor with
+     * a 28-tick encoder: F = 32767 / (max ticks per second), P = F / 10, I = P / 10. The I part is what
+     * keeps pushing until the wheel really reaches the speed, whatever the friction. If the speed
+     * recovers too slowly after a shot, raise P (and I with it) a step at a time.
+     */
+    static final double SHOOTER_P = 1.17, SHOOTER_I = 0.117, SHOOTER_D = 0.0, SHOOTER_F = 11.7;
     /** Flywheel speed for shots by hand when the OpMode starts. Y and A change it. */
     static final double MANUAL_RPM = 1400.0;
     /** The fastest Y will take it. Raise this only when you know you need more. */
@@ -75,7 +82,7 @@ public class CameraShooterTeleOp extends OpMode {
     /** A nectar needs the flywheel about this much faster than a pollen for the same shot. */
     static final double NECTAR_SPEED_FACTOR = 1.04;
     /** Shoot only while the flywheel is within this fraction of the speed the shot needs. */
-    static final double SPEED_TOLERANCE = 0.04;
+    static final double SPEED_TOLERANCE = 0.06;
 
     // ---- Gate servo at the neck (check with "Test: Servos"). No gate on the robot? Leave it out of the configuration. ----
     static final double GATE_CLOSED = 0.0, GATE_OPEN = 1.0;
@@ -281,8 +288,12 @@ public class CameraShooterTeleOp extends OpMode {
             if (SHOOTER_HOLD_SPEED) m.setVelocity(commandedRpm / 60.0 * SHOOTER_TICKS_PER_REV);   // ticks per second
             else m.setPower(commandedRpm / SHOOTER_MAX_RPM);
             motorRpm[i] = m.getVelocity() / SHOOTER_TICKS_PER_REV * 60.0;
-            actualRpm = Math.max(actualRpm, Math.abs(motorRpm[i]));
         }
+        // The hub measures speed in steps of about 43 rpm with these encoders, so the two readings often
+        // differ by one step. Their average is the best figure for the flywheel.
+        if (shooterLeft != null && shooterRight != null && Math.abs(motorRpm[0]) > 1 && Math.abs(motorRpm[1]) > 1)
+            actualRpm = (Math.abs(motorRpm[0]) + Math.abs(motorRpm[1])) / 2.0;
+        else actualRpm = Math.max(Math.abs(motorRpm[0]), Math.abs(motorRpm[1]));
         // What is wrong with the flywheel, if anything, once it has had a second to spin up.
         if (commandedRpm < 300.0) flywheelOnSince = now;
         String problem = "";
@@ -297,7 +308,7 @@ public class CameraShooterTeleOp extends OpMode {
             else if (motorRpm[0] < 0)
                 problem = "TURNING BACKWARDS: change both REVERSE_SHOOTER_... settings";
             else if (actualRpm < 0.7 * commandedRpm)
-                problem = "TOO SLOW: it cannot reach the speed. Something is dragging, or the battery is low";
+                problem = "TOO SLOW: it cannot reach the speed. Take the balls out and try again; if it is still slow, something is rubbing";
         }
 
         // ---- feeders and gate ----

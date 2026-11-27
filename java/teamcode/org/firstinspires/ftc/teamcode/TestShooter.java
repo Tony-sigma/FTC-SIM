@@ -21,7 +21,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 @TeleOp(name = "Test: Shooter", group = "Tests")
 public class TestShooter extends OpMode {
     static final String[] NAMES = {"shooterLeft", "shooterRight"};
-    static final boolean[] REVERSED = {false, false};
+    static final boolean[] REVERSED = {true, false};   // found on the real robot: left reversed, right not
     static final double MAX_POWER = 0.40;
     static final double TICKS_PER_REV = 28.0;   // bare goBILDA motor (gearbox removed)
 

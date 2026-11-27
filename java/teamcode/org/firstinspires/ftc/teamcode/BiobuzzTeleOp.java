@@ -63,7 +63,9 @@ public class BiobuzzTeleOp extends OpMode {
     static final boolean REVERSE_INTAKE_B = false;
 
     // ---- Shooter (check with "Test: Shooter": both motors must turn the flywheel the SAME way) ----
-    static final boolean REVERSE_SHOOTER_LEFT = false;
+    // Found on the real robot (2026-11): left reversed, right not. With both the same the two motors
+    // fight; with them the other way round the flywheel spins backwards and pulls the balls back in.
+    static final boolean REVERSE_SHOOTER_LEFT = true;
     static final boolean REVERSE_SHOOTER_RIGHT = false;
     /**
      * true = the hub holds the flywheel speed (RUN_USING_ENCODER). Every ball slows the wheels (a nectar
@@ -74,14 +76,19 @@ public class BiobuzzTeleOp extends OpMode {
     static final boolean SHOOTER_HOLD_SPEED = true;
     static final double SHOOTER_TICKS_PER_REV = 28.0;   // bare goBILDA Yellow Jacket motor
     static final double SHOOTER_MAX_RPM = 6000.0;
-    /** Speed-hold tuning, starting values: F = 32767 / (max ticks per second), then raise P until it recovers fast without buzzing. */
-    static final double SHOOTER_P = 10.0, SHOOTER_I = 0.0, SHOOTER_D = 0.0, SHOOTER_F = 11.7;
+    /**
+     * Speed-hold tuning. These are the values the FTC software itself uses for a bare 6000 rpm motor with
+     * a 28-tick encoder: F = 32767 / (max ticks per second), P = F / 10, I = P / 10. The I part is what
+     * keeps pushing until the wheel really reaches the speed, whatever the friction. If the speed
+     * recovers too slowly after a shot, raise P (and I with it) a step at a time.
+     */
+    static final double SHOOTER_P = 1.17, SHOOTER_I = 0.117, SHOOTER_D = 0.0, SHOOTER_F = 11.7;
     /** Flywheel speed for shots by hand (auto-aim off). Change it live with the second gamepad's D-pad. */
     static final double MANUAL_RPM = 1400.0;
     /** A nectar needs the flywheel about this much faster than a pollen for the same shot. */
     static final double NECTAR_SPEED_FACTOR = 1.04;
     /** Shoot only while the flywheel is within this fraction of the speed the shot needs. */
-    static final double SPEED_TOLERANCE = 0.04;
+    static final double SPEED_TOLERANCE = 0.06;
 
     // ---- Gate servo at the neck (check with "Test: Servos"). No gate on the robot? Leave it out of the configuration. ----
     static final double GATE_CLOSED = 0.0, GATE_OPEN = 1.0;
@@ -377,13 +384,18 @@ public class BiobuzzTeleOp extends OpMode {
         set(hoodServo, HOOD_FLAT + hood * (HOOD_STEEP - HOOD_FLAT));
         if (nectarMode) targetRpm *= NECTAR_SPEED_FACTOR;
 
+        // The hub measures speed in steps of about 43 rpm with these encoders, so the two motors often
+        // read one step apart. Their average is the best figure for the flywheel.
         double actualRpm = 0.0;
+        int reading = 0;
         for (DcMotorEx m : new DcMotorEx[]{shooterLeft, shooterRight}) {
             if (m == null) continue;
             if (SHOOTER_HOLD_SPEED) m.setVelocity(targetRpm / 60.0 * SHOOTER_TICKS_PER_REV);   // ticks per second
             else m.setPower(targetRpm / SHOOTER_MAX_RPM);
-            actualRpm = Math.max(actualRpm, Math.abs(m.getVelocity()) / SHOOTER_TICKS_PER_REV * 60.0);
+            double rpm = Math.abs(m.getVelocity()) / SHOOTER_TICKS_PER_REV * 60.0;
+            if (rpm > 1) { actualRpm += rpm; reading++; }
         }
+        if (reading > 0) actualRpm /= reading;
 
         // ---- intake, feeders, gate ----
         boolean shoot = gamepad1.right_trigger > 0.3;
