@@ -23,7 +23,8 @@ import java.util.List;
  * THE FLYWHEEL IS OFF UNTIL YOU PRESS X. Nobody in front of the shooter, safety glasses on.
  *
  *   X                  flywheel ON / OFF
- *   Y / A              flywheel speed for shots by hand: +25 / -25 rpm
+ *   Y / A              flywheel speed for shots by hand: +100 / -100 rpm
+ *                      (hold the LEFT BUMPER while pressing for fine steps of 25)
  *   D-pad up / down    hood by hand           (only while auto-aim is off)
  *   D-pad left / right turret by hand         (switches auto-aim off)
  *   Right stick click  AUTO-AIM on / off: the camera keeps the turret on our hive's raised cell and
@@ -77,8 +78,12 @@ public class CameraShooterTeleOp extends OpMode {
     static final double SHOOTER_P = 1.17, SHOOTER_I = 0.117, SHOOTER_D = 0.0, SHOOTER_F = 11.7;
     /** Flywheel speed for shots by hand when the OpMode starts. Y and A change it. */
     static final double MANUAL_RPM = 1400.0;
-    /** The fastest Y will take it. Raise this only when you know you need more. */
-    static final double MANUAL_RPM_LIMIT = 2400.0;
+    /**
+     * The fastest Y will take it. 6000 = everything the motors have: a ball then leaves at well over
+     * 50 mph, so only go there to find out whether the shooter can pass a ball at all, pointing at a
+     * wall or a blanket with nobody near. For normal use bring this back down to about 2500.
+     */
+    static final double MANUAL_RPM_LIMIT = 6000.0;
     /** A nectar needs the flywheel about this much faster than a pollen for the same shot. */
     static final double NECTAR_SPEED_FACTOR = 1.04;
     /** Shoot only while the flywheel is within this fraction of the speed the shot needs. */
@@ -146,6 +151,7 @@ public class CameraShooterTeleOp extends OpMode {
     private boolean flywheelOn = false, autoAim = false, nectarMode = false;
     private boolean lastX, lastY, lastA, lastRightStick, lastLeftStick;
     private double sweepDirection = 1.0, lastLoopTime = 0.0, flywheelOnSince = 0.0;
+    private double dipRpm = 0.0, dipSeenAt = -10.0;
     // What the camera last saw of our raised cell.
     private boolean seesCell = false;
     private double cellBearing = 0.0, cellDistance = 0.0, cellSeenAt = -10.0;
@@ -253,8 +259,9 @@ public class CameraShooterTeleOp extends OpMode {
 
         // ---- hood and flywheel speed ----
         if (gamepad1.x && !lastX) flywheelOn = !flywheelOn;
-        if (gamepad1.y && !lastY) manualRpm += 25.0;
-        if (gamepad1.a && !lastA) manualRpm -= 25.0;
+        double rpmStep = gamepad1.left_bumper ? 25.0 : 100.0;
+        if (gamepad1.y && !lastY) manualRpm += rpmStep;
+        if (gamepad1.a && !lastA) manualRpm -= rpmStep;
         if (gamepad1.left_stick_button && !lastLeftStick) nectarMode = !nectarMode;
         lastX = gamepad1.x;
         lastY = gamepad1.y;
@@ -294,6 +301,11 @@ public class CameraShooterTeleOp extends OpMode {
         if (shooterLeft != null && shooterRight != null && Math.abs(motorRpm[0]) > 1 && Math.abs(motorRpm[1]) > 1)
             actualRpm = (Math.abs(motorRpm[0]) + Math.abs(motorRpm[1])) / 2.0;
         else actualRpm = Math.max(Math.abs(motorRpm[0]), Math.abs(motorRpm[1]));
+        // How far a ball pulls the speed down: the lowest reading in the last three seconds.
+        if (now - dipSeenAt > 3.0 || actualRpm < dipRpm) {
+            if (actualRpm < dipRpm || now - dipSeenAt > 3.0) dipSeenAt = now;
+            dipRpm = actualRpm;
+        }
         // What is wrong with the flywheel, if anything, once it has had a second to spin up.
         if (commandedRpm < 300.0) flywheelOnSince = now;
         String problem = "";
@@ -307,7 +319,7 @@ public class CameraShooterTeleOp extends OpMode {
                 problem = (leftTurns ? "shooterRight" : "shooterLeft") + " READS 0: its encoder cable is not plugged in (or set SHOOTER_HOLD_SPEED to false)";
             else if (motorRpm[0] < 0)
                 problem = "TURNING BACKWARDS: change both REVERSE_SHOOTER_... settings";
-            else if (actualRpm < 0.7 * commandedRpm)
+            else if (actualRpm < 0.7 * commandedRpm && commandedRpm < 4000.0)
                 problem = "TOO SLOW: it cannot reach the speed. Take the balls out and try again; if it is still slow, something is rubbing";
         }
 
@@ -327,6 +339,7 @@ public class CameraShooterTeleOp extends OpMode {
         // ---- Driver Station ----
         telemetry.addData("Flywheel (X)", "%s   %.0f of %.0f rpm (%s)%s", flywheelOn ? "ON" : "OFF", actualRpm, commandedRpm, shotNote, nectarMode ? "  NECTAR" : "");
         telemetry.addData("Each motor", "shooterLeft %+.0f rpm   shooterRight %+.0f rpm", motorRpm[0], motorRpm[1]);
+        telemetry.addData("Slowest in the last 3 s", "%.0f rpm  (how far a ball pulled it down; 0 = it stalled)", dipRpm);
         if (!problem.isEmpty()) telemetry.addData("FLYWHEEL PROBLEM", problem);
         telemetry.addData("Auto-aim", autoAim ? "ON" : "off");
         if (cellKnown) telemetry.addData("Camera", "%s  bearing %.1f  distance %.1f in  %d%% seen", cellName, cellBearing, cellDistance, cellPercent);

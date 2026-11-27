@@ -178,7 +178,7 @@ func _process(_dt: float) -> void:
 		"nectar": "red %d  blue %d waiting off the field" % [field.nectar_reserve["red"], field.nectar_reserve["blue"]],
 		"held_nectar": robot.held_of("nectar"),
 		"next_kind": robot.next_kind() if robot.held_total() > 0 else "",
-		"jam": robot.jam_reason,
+		"jam": robot.shooter_fault if robot.shooter_fault != "" else robot.jam_reason,
 		"last_shot": robot.last_shot,
 		"turret_deg": robot.turret_from_home_deg(),
 		"turret_half_range": robot.turret_range_deg() / 2.0,

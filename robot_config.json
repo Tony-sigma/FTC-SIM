@@ -84,6 +84,8 @@
   "shooter": {
     "_note": "Two motors on one flywheel. A ball waiting at the neck is launched when the gate is open, its intake/feeder motor runs AND the flywheel is spinning.",
     "motor_names": ["shooterLeft", "shooterRight"],
+    "_mirrored_note": "Found on the real robot: the two shooter motors face each other, and the left one is the mirrored one, so the code has to reverse shooterLeft. If the code reverses neither, the two fight and the flywheel does not turn; if it reverses the wrong one, the flywheel spins backwards. The sim shows both mistakes.",
+    "motor_mirrored": [true, false],
     "hood_servo_name": "hoodServo",
     "_gate_note": "ASSUMPTION: something holds pollen at the neck until you want to shoot (a gate/stopper servo). Without one, running a feeder with the flywheel spinning fires straight away. Position > 0.5 = open.",
     "gate_servo_name": "gateServo",

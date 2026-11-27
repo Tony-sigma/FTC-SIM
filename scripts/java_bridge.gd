@@ -20,6 +20,7 @@ var _start := false
 var _stop := false
 var _prev := {}
 var _shooter := [0.0, 0.0]
+var _shooter_mirrored: Array = []
 var _shooter_ticks := 0.0
 
 var _drive: Array = []
@@ -45,6 +46,7 @@ func apply_config() -> void:
 	_inverted = Config.value("drivetrain.motor_inverted", [true, false, true, false])
 	_intakes = Config.value("intakes.motor_names", ["intakeA", "intakeB"])
 	_shooters = Config.value("shooter.motor_names", ["shooterLeft", "shooterRight"])
+	_shooter_mirrored = Config.value("shooter.motor_mirrored", [false, false])
 	_odo = Config.value("odometry.names", ["odoX", "odoY"])
 	# Each lever has one or two servos: [[front lever's servos], [back lever's servos]].
 	_levers = []
@@ -140,6 +142,7 @@ func _zero_robot() -> void:
 	robot.intake_front_power = 0.0
 	robot.intake_back_power = 0.0
 	robot.shooter_power = 0.0
+	robot.shooter_fault = ""
 	_lever_cmd.clear()
 	robot.lever_fight = [false, false]
 	robot.velocity_hold = bool(Config.value("shooter.velocity_control", true))
@@ -166,8 +169,18 @@ func _apply(msg: Dictionary) -> void:
 		elif _intakes.size() > 1 and name == _intakes[1]:
 			robot.intake_back_power = p
 		elif _shooters.has(name):
-			_shooter[_shooters.find(name)] = absf(p)
-			robot.shooter_power = (_shooter[0] + _shooter[1]) / 2.0 if _shooter[0] > 0.0 and _shooter[1] > 0.0 else maxf(_shooter[0], _shooter[1])
+			# A mirrored motor turns the flywheel the other way for the same power, so the code has to
+			# reverse it. Two motors pushing opposite ways cancel out; both the wrong way spin it backwards.
+			var k := _shooters.find(name)
+			_shooter[k] = p * (-1.0 if k < _shooter_mirrored.size() and bool(_shooter_mirrored[k]) else 1.0)
+			var both: bool = _shooter[0] != 0.0 and _shooter[1] != 0.0
+			var drive: float = (_shooter[0] + _shooter[1]) / 2.0 if both else (_shooter[0] if _shooter[0] != 0.0 else _shooter[1])
+			robot.shooter_fault = ""
+			if both and signf(_shooter[0]) != signf(_shooter[1]):
+				robot.shooter_fault = "SHOOTER MOTORS FIGHT EACH OTHER (one must be reversed in the code)"
+			elif drive < 0.0:
+				robot.shooter_fault = "FLYWHEEL SPINS BACKWARDS (reverse both shooter motors in the code)"
+			robot.shooter_power = maxf(drive, 0.0)
 	# Shooter motors in RUN_USING_ENCODER have their speed held by the hub; with plain power they do not.
 	var held: Array = msg.get("held", [])
 	robot.velocity_hold = _shooters.any(func(n): return held.has(n))
@@ -215,8 +228,10 @@ func _state(dt: float) -> Dictionary:
 		motors[_drive[i]] = _encoder(_drive[i], robot.get_wheel_ticks(i) * _sign(i), dt)
 	for name in _intakes:
 		motors[name] = [0, 0]
-	for name in _shooters:
-		motors[name] = _encoder(name, _shooter_ticks, dt)
+	for i in _shooters.size():
+		# A mirrored motor's encoder counts the other way.
+		var mirrored: bool = i < _shooter_mirrored.size() and bool(_shooter_mirrored[i])
+		motors[_shooters[i]] = _encoder(_shooters[i], _shooter_ticks * (-1.0 if mirrored else 1.0), dt)
 	var odo_tpm := Config.num("odometry.ticks_per_rev", 2000.0) / (PI * Config.num("odometry.wheel_diameter_mm", 32.0) / 1000.0)
 	if _odo.size() >= 2:
 		motors[_odo[0]] = _encoder(_odo[0], robot.odo_forward * odo_tpm, dt)
