@@ -150,6 +150,15 @@ func _run() -> void:
 	await tap(KEY_1)
 	check("A takes a photo once the camera is streaming", bridge.telemetry.contains("STREAMING") and bridge.telemetry.contains("Photos taken (A) : 1"), bridge.telemetry.strip_edges().replace("\n", " | "))
 
+	check("full-power shooter test starts", await start("Test: Shooter FULL POWER"))
+	check("nothing runs until the trigger is held", robot.shooter_power == 0.0 and robot.shooter_fault == "")
+	key(KEY_SPACE, true)   # right trigger
+	await steps(60)
+	check("holding the trigger gives both shooter motors full power, the right way round", robot.shooter_power == 1.0 and robot.shooter_fault == "" and bridge.telemetry.contains("ON at 100 % power"), "%.2f %s" % [robot.shooter_power, robot.shooter_fault])
+	key(KEY_SPACE, false)
+	await steps(30)
+	check("letting go switches it off", robot.shooter_power == 0.0)
+
 	check("turret test starts", await start("Test: Turret"))
 	var home: float = robot.turret_goal_deg
 	var hood_before: float = robot.hood_servo
