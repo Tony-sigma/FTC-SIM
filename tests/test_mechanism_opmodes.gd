@@ -87,10 +87,17 @@ func _run() -> void:
 	await steps(20)
 	check("hood servo follows the nudges, turret stays put", robot.hood_servo > 0.55 and robot.turret_goal_deg == turret0 and bridge.telemetry.contains(">> MOVING hoodServo"), "hood %.3f" % robot.hood_servo)
 	await tap(KEY_RIGHT)   # gateServo (disarmed again)
-	await tap(KEY_RIGHT)   # leverLeft
+	await tap(KEY_RIGHT)   # leverFrontLeft
 	await tap(KEY_1)
 	await tap(KEY_B)       # right bumper: +0.05
-	check("lever servo jumps by 0.05 on the bumper", absf(robot.lever_front_servo - 0.55) < 0.001, "%.3f" % robot.lever_front_servo)
+	check("lever servo jumps by 0.05 on the bumper", absf(robot.lever_front_servo - 0.55) < 0.001 and not robot.lever_fight[0], "%.3f" % robot.lever_front_servo)
+	# The second servo of the same lever is mirrored. Driven the same way as the first (not reversed in
+	# the code) it pushes against it: the sim reports the fight.
+	await tap(KEY_RIGHT)   # leverFrontRight
+	await tap(KEY_1)
+	for i in 4:
+		await tap(KEY_B)
+	check("two lever servos told to go opposite ways are reported as fighting", robot.lever_fight[0] and not robot.lever_fight[1], "front lever at %.3f" % robot.lever_front_servo)
 
 	check("intake + feeder test starts", await start("Test: Intake + Feeder"))
 	key(KEY_SPACE, true)   # right trigger
@@ -162,17 +169,17 @@ func _run() -> void:
 	check("hood moves with the bumper and the D-pad, flywheel stays off", robot.hood_servo > 0.42 and robot.hood_servo < 0.5 and robot.shooter_power == 0.0, "%.3f" % robot.hood_servo)
 
 	check("lever test starts", await start("Test: Levers"))
-	await tap(KEY_2)   # B = right lever
+	await tap(KEY_2)   # B = back lever
 	await tap(KEY_1)   # arm
 	await tap(KEY_B)   # +0.05
-	check("only the chosen (right) lever moves", absf(robot.lever_back_servo - 0.55) < 0.001 and robot.lever_front_servo == 0.0, "left %.3f right %.3f" % [robot.lever_front_servo, robot.lever_back_servo])
-	await tap(KEY_3)   # X = left lever
+	check("only the chosen (back) lever moves, its two servos together", absf(robot.lever_back_servo - 0.55) < 0.001 and robot.lever_front_servo == 0.0 and not robot.lever_fight[1], "front %.3f back %.3f" % [robot.lever_front_servo, robot.lever_back_servo])
+	await tap(KEY_3)   # X = front lever
 	await tap(KEY_1)
 	key(KEY_UP, true)
 	await steps(120)
 	key(KEY_UP, false)
 	await steps(20)
-	check("then the left lever moves and the right one holds", robot.lever_front_servo > 0.6 and absf(robot.lever_back_servo - 0.55) < 0.001, "left %.3f right %.3f" % [robot.lever_front_servo, robot.lever_back_servo])
+	check("then the front lever moves and the back one holds", robot.lever_front_servo > 0.6 and absf(robot.lever_back_servo - 0.55) < 0.001 and not robot.lever_fight[0], "front %.3f back %.3f" % [robot.lever_front_servo, robot.lever_back_servo])
 
 	main.reset_all()
 	await steps(30)

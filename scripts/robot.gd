@@ -64,6 +64,8 @@ var shots_fired := 0
 ## Balls inside each feeder, the one nearest the shooter first:
 ## { p: progress 0 (just swallowed) .. 1 (waiting at the neck), kind: "pollen" / "nectar_red" / "nectar_blue" }.
 var feeders: Array = [[], []]
+## True while the two servos of a lever (front, back) are told to go different ways and fight each other.
+var lever_fight: Array = [false, false]
 ## Why a ball is stuck at the shooter wheels right now ("" = nothing stuck).
 var jam_reason := ""
 ## The last shot: { kind, speed (m/s), rpm_before, rpm_after }.

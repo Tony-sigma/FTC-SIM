@@ -28,6 +28,8 @@ var _intakes: Array = []
 var _shooters: Array = []
 var _odo: Array = []
 var _levers: Array = []
+var _lever_mirrored: Array = []
+var _lever_cmd: Dictionary = {}   # lever servo name -> where it is trying to put its lever (0 in .. 1 out)
 var _turret := "turretServo"
 var _hood := "hoodServo"
 var _gate := "gateServo"
@@ -44,7 +46,11 @@ func apply_config() -> void:
 	_intakes = Config.value("intakes.motor_names", ["intakeA", "intakeB"])
 	_shooters = Config.value("shooter.motor_names", ["shooterLeft", "shooterRight"])
 	_odo = Config.value("odometry.names", ["odoX", "odoY"])
-	_levers = Config.value("levers.servo_names", ["leverLeft", "leverRight"])
+	# Each lever has one or two servos: [[front lever's servos], [back lever's servos]].
+	_levers = []
+	for entry in Config.value("levers.servo_names", [["leverFrontLeft", "leverFrontRight"], ["leverBackLeft", "leverBackRight"]]):
+		_levers.append(entry if entry is Array else [entry])
+	_lever_mirrored = Config.value("levers.mirrored_servos", [])
 	_turret = str(Config.value("turret.servo_name", "turretServo"))
 	_hood = str(Config.value("shooter.hood_servo_name", "hoodServo"))
 	_gate = str(Config.value("shooter.gate_servo_name", "gateServo"))
@@ -116,7 +122,8 @@ func _on_connect() -> void:
 	for name in _odo:
 		motors[name] = 0.0
 	var servos: Array = [_turret, _hood, _gate]
-	servos.append_array(_levers)
+	for pair in _levers:
+		servos.append_array(pair)
 	var pose: Vector3 = robot.get_pose_ftc()
 	_send({"type": "hello", "motors": motors, "servos": servos, "camera": str(Config.value("camera.name", "Webcam 1")),
 		"pinpoint": str(Config.value("odometry.pinpoint_name", "pinpoint")), "pose": [pose.x, pose.y, pose.z]})
@@ -133,6 +140,8 @@ func _zero_robot() -> void:
 	robot.intake_front_power = 0.0
 	robot.intake_back_power = 0.0
 	robot.shooter_power = 0.0
+	_lever_cmd.clear()
+	robot.lever_fight = [false, false]
 	robot.velocity_hold = bool(Config.value("shooter.velocity_control", true))
 	robot.gate_open = true   # no gate servo in the code = pollen feed straight through
 	robot.aim_point = null
@@ -174,10 +183,26 @@ func _apply(msg: Dictionary) -> void:
 			robot.hood_servo = pos
 		elif name == _gate:
 			robot.gate_open = pos > 0.5
-		elif name == _levers[0]:
-			robot.lever_front_servo = pos
-		elif _levers.size() > 1 and name == _levers[1]:
-			robot.lever_back_servo = pos
+		else:
+			for pair in _levers:
+				if pair.has(name):
+					# A mirrored servo turns the other way: its position 1 is "lever in".
+					_lever_cmd[name] = (1.0 - pos) if _lever_mirrored.has(name) else pos
+	# Two servos on one lever. If they agree, the lever goes there. If they do not (one of them is not
+	# reversed in the code), they push against each other and the lever is stuck in between.
+	for i in mini(_levers.size(), 2):
+		var wants: Array = []
+		for n in _levers[i]:
+			if _lever_cmd.has(n):
+				wants.append(_lever_cmd[n])
+		if wants.is_empty():
+			continue
+		var target: float = (wants.min() + wants.max()) / 2.0
+		robot.lever_fight[i] = wants.max() - wants.min() > 0.08
+		if i == 0:
+			robot.lever_front_servo = target
+		else:
+			robot.lever_back_servo = target
 
 func _encoder(name: String, ticks: float, dt: float) -> Array:
 	var before: float = _prev.get(name, ticks)

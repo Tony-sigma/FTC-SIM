@@ -7,7 +7,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 /**
  * TEST: only the levers.
  *
- *   X                 work on the LEFT lever       B   work on the RIGHT lever
+ *   X                 work on the FRONT lever      B   work on the BACK lever
  *   A                 ARM the chosen lever: it moves to the position shown (starts at 0.50)
  *   D-pad UP / DOWN   move slowly (hold)
  *   BUMPERS           right +0.05, left -0.05
@@ -17,14 +17,21 @@ import com.qualcomm.robotcore.hardware.Servo;
  * its resting position and its fully-out position (the one that wedges under the flower). Stop the
  * moment the lever touches the frame or the floor.
  *
- * If a lever has TWO servos, add the second one's name to that lever's list below. If the second
- * servo faces the other way, put true in the matching REVERSED list so the pair moves together.
+ * Each lever has TWO servos, one at each end of its bar, facing each other. One of each pair must be
+ * reversed (the REVERSED list below) or the two push against each other: they buzz, get hot and can
+ * burn out. So the FIRST time, check each servo ALONE:
+ *   1. Unplug one servo of the pair from the hub (an unplugged servo turns freely).
+ *   2. Arm the lever and press D-pad UP: note which way the lever swings.
+ *   3. Swap: plug that one back in, unplug the other, and do the same.
+ *   4. Both must swing the SAME way on D-pad UP. If they do not, change true/false for one of them
+ *      in REVERSED. Only then plug both in.
+ * Copy the REVERSED values and the two positions you found into the TeleOps.
  */
 @TeleOp(name = "Test: Levers", group = "Tests")
 public class TestLevers extends OpMode {
-    static final String[][] NAMES = {{"leverLeft"}, {"leverRight"}};
-    static final boolean[][] REVERSED = {{false}, {false}};
-    static final String[] LABELS = {"LEFT lever", "RIGHT lever"};
+    static final String[][] NAMES = {{"leverFrontLeft", "leverFrontRight"}, {"leverBackLeft", "leverBackRight"}};
+    static final boolean[][] REVERSED = {{false, true}, {false, true}};
+    static final String[] LABELS = {"FRONT lever", "BACK lever"};
     static final double NUDGE_PER_LOOP = 0.002;
 
     private final Servo[][] servos = new Servo[2][];
@@ -59,15 +66,15 @@ public class TestLevers extends OpMode {
         lastRb = gamepad1.right_bumper;
         positions[selected] = Math.max(0.0, Math.min(1.0, positions[selected]));
 
-        telemetry.addLine("X left   B right   A arm   D-pad U/D move   bumpers jump   Y disarm both");
+        telemetry.addLine("X front   B back   A arm   D-pad U/D move   bumpers jump   Y disarm both");
         for (int lever = 0; lever < 2; lever++) {
-            boolean found = true;
+            boolean found = false;
             for (int i = 0; i < servos[lever].length; i++) {
                 if (servos[lever][i] == null) {
-                    found = false;
                     telemetry.addData(NAMES[lever][i], "NOT FOUND in the configuration");
-                } else if (armed[lever]) {
-                    servos[lever][i].setPosition(positions[lever]);
+                } else {
+                    found = true;
+                    if (armed[lever]) servos[lever][i].setPosition(positions[lever]);
                 }
             }
             String mark = lever == selected ? ">> " : "   ";

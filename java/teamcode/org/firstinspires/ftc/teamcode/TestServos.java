@@ -21,7 +21,7 @@ import com.qualcomm.robotcore.hardware.Servo;
  */
 @TeleOp(name = "Test: Any Servo", group = "Tests")
 public class TestServos extends OpMode {
-    static final String[] NAMES = {"turretServo", "hoodServo", "gateServo", "leverLeft", "leverRight"};
+    static final String[] NAMES = {"turretServo", "hoodServo", "gateServo", "leverFrontLeft", "leverFrontRight", "leverBackLeft", "leverBackRight"};
     static final double NUDGE_PER_LOOP = 0.002;
 
     private final Servo[] servos = new Servo[NAMES.length];

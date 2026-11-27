@@ -178,7 +178,9 @@
 
   "levers": {
     "_note": "Servo position 0 = stowed (upright, as in the CAD), 1 = deployed. Pivots are in the robot frame (+x right, +y up, -z forward, metres), from models/measurements.json.",
-    "servo_names": ["leverLeft", "leverRight"],
+    "_servo_note": "Each lever is turned by TWO servos, one at each end of its bar: first list = front lever, second = back lever. The two servos of a pair face each other, so one of them (mirrored_servos) turns the opposite way for the same position: the code has to reverse it, or the pair fights instead of moving (the HUD then says so).",
+    "servo_names": [["leverFrontLeft", "leverFrontRight"], ["leverBackLeft", "leverBackRight"]],
+    "mirrored_servos": ["leverFrontRight", "leverBackRight"],
     "_cad_pose_note": "How far the levers are folded out in the CAD export (0 = upright, 90 = flat), from models/measurements.json. The new CAD has them at 138 deg, i.e. past flat and pointing down.",
     "cad_pose_deg": 138.1,
     "length_m": 0.1835,

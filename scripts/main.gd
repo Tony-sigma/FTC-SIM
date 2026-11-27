@@ -187,6 +187,7 @@ func _process(_dt: float) -> void:
 		"auto_shot": "" if bridge.connected else teleop.auto_shot_status,
 		"alliance": _alliance,
 		"full": robot.is_full(),
+		"lever_fight": "   %s LEVER: ITS TWO SERVOS FIGHT EACH OTHER (reverse one in the code)" % ("FRONT" if robot.lever_fight[0] else "BACK") if (robot.lever_fight[0] or robot.lever_fight[1]) else "",
 		"lever_front_deg": robot.lever_front_deg,
 		"lever_back_deg": robot.lever_back_deg,
 		"size_in": Vector3(Config.num("robot.length_in", 18.0), Config.num("robot.width_in", 18.0), Config.num("robot.height_in", 18.0)),

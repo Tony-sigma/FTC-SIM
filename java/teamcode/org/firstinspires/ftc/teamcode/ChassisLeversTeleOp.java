@@ -13,7 +13,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 
 /**
- * Only the chassis, the two lever servos and the odometry readout. Nothing else on the robot is touched.
+ * Only the chassis, the two levers (two servos each) and the odometry readout. Nothing else on the robot is touched.
  *
  *   Left stick   drive / strafe          Right stick   turn
  *   Left bumper  slow mode (hold)
@@ -22,7 +22,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
  *
  * Names needed in the robot configuration:
  *   motors  frontLeft, frontRight, backLeft, backRight
- *   servos  leverLeft (front lever), leverRight (back lever)
+ *   servos  leverFrontLeft, leverFrontRight (the two on the front lever)
+ *           leverBackLeft, leverBackRight (the two on the back lever)
  *   the Control Hub's built-in IMU, called "imu" (only needed for field-centric driving)
  *   the goBILDA Pinpoint odometry computer, called "pinpoint" (optional: shows position and speed)
  */
@@ -40,8 +41,12 @@ public class ChassisLeversTeleOp extends OpMode {
     static final RevHubOrientationOnRobot.LogoFacingDirection HUB_LOGO = RevHubOrientationOnRobot.LogoFacingDirection.UP;
     static final RevHubOrientationOnRobot.UsbFacingDirection HUB_USB = RevHubOrientationOnRobot.UsbFacingDirection.FORWARD;
 
-    // Lever servo positions (find them with "Test: Levers"): folded in, and out working a flower.
-    // The two servos are mirrored, so on the real robot one of them probably needs its numbers swapped.
+    // Each lever is turned by TWO servos, one at each end of its bar. They face each other, so one of each
+    // pair has to be reversed or the two fight instead of moving. CHECK EACH SERVO ALONE FIRST with
+    // "Test: Levers" and the other servo of the pair unplugged from the hub.
+    static final boolean REVERSE_LEVER_FRONT_LEFT = false, REVERSE_LEVER_FRONT_RIGHT = true;
+    static final boolean REVERSE_LEVER_BACK_LEFT = false, REVERSE_LEVER_BACK_RIGHT = true;
+    // Positions (the same number goes to both servos of a lever): folded in, and out working a flower.
     static final double LEVER_FRONT_IN = 0.0, LEVER_FRONT_OUT = 1.0;
     static final double LEVER_BACK_IN = 0.0, LEVER_BACK_OUT = 1.0;
 
@@ -57,7 +62,7 @@ public class ChassisLeversTeleOp extends OpMode {
     // ==================================================================================
 
     private DcMotor frontLeft, frontRight, backLeft, backRight;
-    private Servo leverFront, leverBack;
+    private Servo[] leverFront, leverBack;   // the two servos of each lever
     private IMU imu;
     private GoBildaPinpointDriver pinpoint;
     private double odoX, odoY, odoHeading, odoTime, speedInPerS;
@@ -80,8 +85,8 @@ public class ChassisLeversTeleOp extends OpMode {
         }
 
         // The levers and the IMU may be missing: the chassis still drives, and the screen says what is not there.
-        leverFront = hardwareMap.tryGet(Servo.class, "leverLeft");
-        leverBack = hardwareMap.tryGet(Servo.class, "leverRight");
+        leverFront = new Servo[]{leverServo("leverFrontLeft", REVERSE_LEVER_FRONT_LEFT), leverServo("leverFrontRight", REVERSE_LEVER_FRONT_RIGHT)};
+        leverBack = new Servo[]{leverServo("leverBackLeft", REVERSE_LEVER_BACK_LEFT), leverServo("leverBackRight", REVERSE_LEVER_BACK_RIGHT)};
         imu = hardwareMap.tryGet(IMU.class, "imu");
         if (imu != null) {
             imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(HUB_LOGO, HUB_USB)));
@@ -147,14 +152,14 @@ public class ChassisLeversTeleOp extends OpMode {
         if (gamepad1.b && !lastB) leverBackOut = !leverBackOut;
         lastA = gamepad1.a;
         lastB = gamepad1.b;
-        if (leverFront != null) leverFront.setPosition(leverFrontOut ? LEVER_FRONT_OUT : LEVER_FRONT_IN);
-        if (leverBack != null) leverBack.setPosition(leverBackOut ? LEVER_BACK_OUT : LEVER_BACK_IN);
+        setLever(leverFront, leverFrontOut ? LEVER_FRONT_OUT : LEVER_FRONT_IN);
+        setLever(leverBack, leverBackOut ? LEVER_BACK_OUT : LEVER_BACK_IN);
 
         // ---- Driver Station ----
         telemetry.addData("Drive", (fieldCentric && imu != null ? "field-centric" : "robot-centric") + (gamepad1.left_bumper ? "  SLOW" : ""));
         telemetry.addData("Heading", "%.1f deg", Math.toDegrees(heading));
-        telemetry.addData("Front lever (A)", leverFront == null ? "leverLeft NOT in the configuration" : leverFrontOut ? "OUT" : "in");
-        telemetry.addData("Back lever (B)", leverBack == null ? "leverRight NOT in the configuration" : leverBackOut ? "OUT" : "in");
+        telemetry.addData("Front lever (A)", (leverFrontOut ? "OUT" : "in") + missingNote(leverFront, "leverFrontLeft", "leverFrontRight"));
+        telemetry.addData("Back lever (B)", (leverBackOut ? "OUT" : "in") + missingNote(leverBack, "leverBackLeft", "leverBackRight"));
         if (pinpoint == null) {
             telemetry.addData("Odometry", "\"" + PINPOINT_NAME + "\" NOT in the configuration");
         } else {
@@ -162,5 +167,24 @@ public class ChassisLeversTeleOp extends OpMode {
             telemetry.addData("Speed", "%.1f in/s  (odometry %s)", speedInPerS, pinpoint.getDeviceStatus());
         }
         if (imu == null) telemetry.addData("IMU", "\"imu\" NOT in the configuration: robot-centric only");
+    }
+
+    /** One of a lever's two servos, or null when it is not in the configuration. */
+    private Servo leverServo(String name, boolean reversed) {
+        Servo s = hardwareMap.tryGet(Servo.class, name);
+        if (s != null) s.setDirection(reversed ? Servo.Direction.REVERSE : Servo.Direction.FORWARD);
+        return s;
+    }
+
+    /** Send both servos of a lever to the same position. */
+    private static void setLever(Servo[] pair, double position) {
+        for (Servo s : pair) if (s != null) s.setPosition(position);
+    }
+
+    private static String missingNote(Servo[] pair, String left, String right) {
+        String note = "";
+        if (pair[0] == null) note += "   " + left + " NOT in the configuration";
+        if (pair[1] == null) note += "   " + right + " NOT in the configuration";
+        return note;
     }
 }

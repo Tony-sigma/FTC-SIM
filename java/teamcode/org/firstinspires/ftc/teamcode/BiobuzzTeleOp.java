@@ -109,6 +109,12 @@ public class BiobuzzTeleOp extends OpMode {
     static final double HOOD_FLAT = 0.0, HOOD_STEEP = 1.0;
 
     // ---- Lever servos (check with "Test: Levers") ----
+    // Each lever is turned by TWO servos, one at each end of its bar. They face each other, so one of each
+    // pair has to be reversed or the two fight instead of moving. CHECK EACH SERVO ALONE FIRST with
+    // "Test: Levers" and the other servo of the pair unplugged from the hub.
+    static final boolean REVERSE_LEVER_FRONT_LEFT = false, REVERSE_LEVER_FRONT_RIGHT = true;
+    static final boolean REVERSE_LEVER_BACK_LEFT = false, REVERSE_LEVER_BACK_RIGHT = true;
+    // Positions (the same number goes to both servos of a lever): folded in, and out working a flower.
     static final double LEVER_FRONT_IN = 0.0, LEVER_FRONT_OUT = 1.0;
     static final double LEVER_BACK_IN = 0.0, LEVER_BACK_OUT = 1.0;
 
@@ -155,7 +161,8 @@ public class BiobuzzTeleOp extends OpMode {
 
     private DcMotorEx frontLeft, frontRight, backLeft, backRight;
     private DcMotorEx intakeA, intakeB, shooterLeft, shooterRight;
-    private Servo turretServo, hoodServo, gateServo, leverLeft, leverRight;
+    private Servo turretServo, hoodServo, gateServo;
+    private Servo[] leverFront, leverBack;   // the two servos of each lever
     private IMU imu;
     private VisionPortal visionPortal;
     private AprilTagProcessor aprilTag;
@@ -202,8 +209,8 @@ public class BiobuzzTeleOp extends OpMode {
         turretServo = servo("turretServo");
         hoodServo = servo("hoodServo");
         gateServo = servo("gateServo");
-        leverLeft = servo("leverLeft");
-        leverRight = servo("leverRight");
+        leverFront = new Servo[]{leverServo("leverFrontLeft", REVERSE_LEVER_FRONT_LEFT), leverServo("leverFrontRight", REVERSE_LEVER_FRONT_RIGHT)};
+        leverBack = new Servo[]{leverServo("leverBackLeft", REVERSE_LEVER_BACK_LEFT), leverServo("leverBackRight", REVERSE_LEVER_BACK_RIGHT)};
 
         imu = hardwareMap.tryGet(IMU.class, "imu");
         if (imu == null) {
@@ -387,8 +394,8 @@ public class BiobuzzTeleOp extends OpMode {
         if (gamepad1.b && !lastB) leverBackOut = !leverBackOut;
         lastA = gamepad1.a;
         lastB = gamepad1.b;
-        set(leverLeft, leverFrontOut ? LEVER_FRONT_OUT : LEVER_FRONT_IN);
-        set(leverRight, leverBackOut ? LEVER_BACK_OUT : LEVER_BACK_IN);
+        setLever(leverFront, leverFrontOut ? LEVER_FRONT_OUT : LEVER_FRONT_IN);
+        setLever(leverBack, leverBackOut ? LEVER_BACK_OUT : LEVER_BACK_IN);
 
         // ---- Driver Station ----
         telemetry.addData("Drive", fieldCentric && imu != null ? "field-centric" : "robot-centric");
@@ -438,6 +445,18 @@ public class BiobuzzTeleOp extends OpMode {
         Servo s = hardwareMap.tryGet(Servo.class, name);
         if (s == null) missing.add(name);
         return s;
+    }
+
+    /** One of a lever's two servos, or null (and a note for the Driver Station) when it is not in the configuration. */
+    private Servo leverServo(String name, boolean reversed) {
+        Servo s = servo(name);
+        if (s != null) s.setDirection(reversed ? Servo.Direction.REVERSE : Servo.Direction.FORWARD);
+        return s;
+    }
+
+    /** Send both servos of a lever to the same position. */
+    private static void setLever(Servo[] pair, double position) {
+        for (Servo s : pair) set(s, position);
     }
 
     private static void power(DcMotorEx m, double p) {

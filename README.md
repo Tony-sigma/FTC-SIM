@@ -81,8 +81,10 @@ provides stand-ins with the same names as the FTC SDK classes (`java/sdk`).
 - Motors (`DcMotor` / `DcMotorEx`): `frontLeft`, `frontRight`, `backLeft`, `backRight`, `intakeA`,
   `intakeB`, `shooterLeft`, `shooterRight`, and the odometry pods as encoders `odoX`, `odoY`.
   Directions, run modes, `RUN_TO_POSITION`, encoders and `getVelocity()` work.
-- Servos: `turretServo` (0..1 = one full turn, 0.5 = centre), `hoodServo`, `gateServo`
-  (above 0.5 = open), `leverLeft` (front lever), `leverRight` (back lever).
+- Servos: `turretServo` (0.5 = centre; 0..1 = the servo's travel through the gears, 64° of turret), `hoodServo`, `gateServo`
+  (above 0.5 = open), and two servos per lever, one at each end of its bar: `leverFrontLeft` + `leverFrontRight` and
+  `leverBackLeft` + `leverBackRight`. The right-hand one of each pair is mirrored in the sim, so the code
+  must reverse it; if it does not, the pair fights and the HUD says so.
 - `IMU` yaw, `gamepad1` / `gamepad2`, `telemetry`, `ElapsedTime`.
 - The main camera as a USB webcam: `hardwareMap.get(WebcamName.class, "Webcam 1")`, used through
   the FTC `VisionPortal` with an `AprilTagProcessor`. `getDetections()` gives each tag in view with
