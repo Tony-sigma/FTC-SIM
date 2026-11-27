@@ -9,8 +9,9 @@ import org.firstinspires.ftc.vision.VisionPortal;
 /**
  * TOOL: take photos with a camera, for its lens calibration. Nothing moves.
  *
- *   Before start:  X = camera 1,  B = camera 2
- *   After start:   A = take a photo
+ *   After INIT, before start:  X = camera 1,  B = camera 2.  To look through the camera: menu
+ *                              (three dots) > Camera Stream; tap the picture for a new snapshot.
+ *   After start:               A = take a photo
  *
  * A camera whose model the FTC software does not know (an Arducam, for example) reports wrong
  * distances until you give it four numbers that describe its lens: fx, fy, cx, cy. To get them:
@@ -39,20 +40,24 @@ public class TestCameraPhotos extends OpMode {
 
     @Override
     public void init() {
-        telemetry.addLine("X = camera 1, B = camera 2, then press start.");
+        open(0);   // the camera is opened now, so Camera Stream can show it before start
     }
 
     @Override
     public void init_loop() {
-        if (gamepad1.x) chosen = 0;
-        if (gamepad1.b) chosen = 1;
-        telemetry.addLine("X = camera 1, B = camera 2, then press start.");
-        telemetry.addData("Will use", "camera %d, \"%s\"%s", chosen + 1, CAMERA_NAMES[chosen],
-            hardwareMap.tryGet(WebcamName.class, CAMERA_NAMES[chosen]) == null ? "  (NOT FOUND in the configuration)" : "");
+        if (gamepad1.x && chosen != 0) open(0);
+        if (gamepad1.b && chosen != 1) open(1);
+        telemetry.addLine("X = camera 1, B = camera 2. To look: menu (three dots) > Camera Stream.");
+        if (found) telemetry.addData("Camera", "%d \"%s\"  %s", chosen + 1, CAMERA_NAMES[chosen], visionPortal.getCameraState());
+        else telemetry.addData("Camera", "%d \"%s\"  NOT FOUND in the configuration", chosen + 1, CAMERA_NAMES[chosen]);
     }
 
-    @Override
-    public void start() {
+    /** Close whichever camera is open and open this one. */
+    private void open(int index) {
+        if (visionPortal != null) visionPortal.close();
+        visionPortal = null;
+        chosen = index;
+        found = false;
         WebcamName camera = hardwareMap.tryGet(WebcamName.class, CAMERA_NAMES[chosen]);
         if (camera == null) return;
         found = true;
