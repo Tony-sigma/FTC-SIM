@@ -159,6 +159,23 @@ func _run() -> void:
 	await steps(30)
 	check("letting go switches it off", robot.shooter_power == 0.0)
 
+	check("real deal shoot test starts", await start("Real Deal Shoot Test"))
+	check("it starts at 0: nothing turns before the first press", robot.shooter_power == 0.0 and bridge.telemetry.contains("Target : 0 rpm"))
+	for i in 3:
+		await tap(KEY_SPACE)   # right trigger, three presses
+	await steps(360)
+	check("three presses of the right trigger = 3000 rpm, held", bridge.telemetry.contains("Target : 3000 rpm") and absf(robot.flywheel_rpm() - 3000.0) < 120.0 and robot.shooter_fault == "", "%.0f rpm" % robot.flywheel_rpm())
+	await tap(KEY_SHIFT)       # left trigger
+	await steps(10)
+	check("left trigger takes 1000 off", bridge.telemetry.contains("Target : 2000 rpm"))
+	for i in 6:
+		await tap(KEY_SPACE)
+	await steps(10)
+	check("it tops out at 6000, which is full power", bridge.telemetry.contains("Target : 6000 rpm") and robot.shooter_power > 0.99, "power %.2f" % robot.shooter_power)
+	await tap(KEY_2)           # B
+	await steps(10)
+	check("B stops it", robot.shooter_power == 0.0 and bridge.telemetry.contains("Target : 0 rpm"))
+
 	check("turret test starts", await start("Test: Turret"))
 	var home: float = robot.turret_goal_deg
 	var hood_before: float = robot.hood_servo

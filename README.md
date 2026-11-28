@@ -171,6 +171,7 @@ A device that is missing from the robot configuration is reported on the screen,
 | Test: Sensors | `TestSensors.java` | IMU heading and the encoders while you move the robot by hand. Nothing is powered. |
 | Test: Odometry | `TestOdometry.java` | The goBILDA Pinpoint and its two pods: status, X, Y and heading while you push the robot by hand, to check pod directions and offsets. |
 | Test: Shooter FULL POWER | `TestShooterFullPower.java` | Both shooter motors at full power while the right trigger is held, with no speed control: for seeing a mechanical problem directly. Read the warning at the top of the file. |
+| Real Deal Shoot Test | `RealDealShootTest.java` | The shooter only: each press of the right trigger adds 1000 rpm, up to 6000 (full power); left trigger takes 1000 off, B stops. |
 | Test: Camera | `TestCamera.java` | One camera at a time (X = camera 1, B = camera 2): is it found, does it stream at the chosen picture size, which AprilTag clusters it sees, with distance, bearing, and whether the cell can be scored in. |
 | Test: Camera Photos | `TestCameraPhotos.java` | Takes photos with a camera for its lens calibration (needed for a correct distance from an Arducam). Does nothing useful in the sim. |
 | Test: Any Servo | `TestServos.java` | A general servo tester for anything else, such as the gate. |
