@@ -227,13 +227,13 @@ func _run() -> void:
 	await steps(90)
 	key(KEY_SPACE, false)
 	check("the flywheel is off until X is pressed, and nothing is fired", ok and robot.shooter_power == 0.0 and robot.shots_fired == 0 and robot.held_total() == held0 and bridge.telemetry.contains("flywheel is off (X)"), bridge.telemetry.strip_edges().replace("\n", " | "))
-	for k in [KEY_3, KEY_4, KEY_4]:   # X = on, Y twice = +200 rpm
+	for k in [KEY_3, KEY_4, KEY_4]:   # X = on, Y twice = +500 rpm
 		key(k, true)
 		await steps(10)
 		key(k, false)
 		await steps(10)
-	await steps(120)
-	check("X turns the flywheel on, Y raises the speed by 100 rpm a press", absf(robot.flywheel_rpm() - 1600.0) < 40.0, "%.0f rpm" % robot.flywheel_rpm())
+	await steps(300)   # the OpMode assumes the real robot's 5000 rpm top speed; the sim's is 6000, so it settles more slowly
+	check("X turns the flywheel on, Y raises the speed by 250 rpm a press", absf(robot.flywheel_rpm() - 1900.0) < 50.0, "%.0f rpm" % robot.flywheel_rpm())
 	key(KEY_T, true)
 	await steps(20)
 	key(KEY_T, false)

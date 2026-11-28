@@ -23,7 +23,7 @@ import java.util.List;
  * THE FLYWHEEL IS OFF UNTIL YOU PRESS X. Nobody in front of the shooter, safety glasses on.
  *
  *   X                  flywheel ON / OFF
- *   Y / A              flywheel speed for shots by hand: +100 / -100 rpm
+ *   Y / A              flywheel speed for shots by hand: +250 / -250 rpm
  *                      (hold the LEFT BUMPER while pressing for fine steps of 25)
  *   D-pad up / down    hood by hand           (only while auto-aim is off)
  *   D-pad left / right turret by hand         (switches auto-aim off)
@@ -74,8 +74,8 @@ public class CameraShooterTeleOp extends OpMode {
     /** Whose encoder measures the flywheel: true = shooterLeft, false = shooterRight. Pick the one that reads steadily. */
     static final boolean SHOOTER_SPEED_FROM_LEFT = true;
     static final double SHOOTER_TICKS_PER_REV = 28.0;   // bare goBILDA Yellow Jacket motor
-    /** Roughly the speed at full power. It only sets the first guess at the power; the encoder corrects the rest. */
-    static final double SHOOTER_MAX_RPM = 6000.0;
+    /** Roughly the speed at full power on the real robot. It only sets the first guess at the power; the encoder corrects the rest. */
+    static final double SHOOTER_MAX_RPM = 5000.0;
     /**
      * Speed-hold tuning. Power = (speed wanted / max speed) + KP x (how far short it is, as a share of max
      * speed) + KI x (that shortfall added up over time). Raise KP if it is slow to recover after a ball;
@@ -85,12 +85,11 @@ public class CameraShooterTeleOp extends OpMode {
     /** Flywheel speed for shots by hand when the OpMode starts. Y and A change it. */
     static final double MANUAL_RPM = 1400.0;
     /**
-     * The fastest Y will take it. DO NOT raise this without thinking: the top wheels are geared 2.25 times
-     * faster than this number (36:24 gears, then 30:20 pulleys), so 3000 here is already 6750 rpm on the
-     * small wheels and their printed pulleys. Full motor speed would be about 13500 rpm up there, which
-     * can throw a wheel or a pulley apart.
+     * The fastest Y will take it: about everything these motors reach on the real robot. Remember the top
+     * wheels are geared 2.25 times faster than this number (36:24 gears, then 30:20 pulleys): 5000 here is
+     * about 11000 rpm on the small wheels and their printed pulleys. Stay behind the robot at these speeds.
      */
-    static final double MANUAL_RPM_LIMIT = 3000.0;
+    static final double MANUAL_RPM_LIMIT = 5000.0;
     /** A nectar needs the flywheel about this much faster than a pollen for the same shot. */
     static final double NECTAR_SPEED_FACTOR = 1.04;
     /** Shoot only while the flywheel is within this fraction of the speed the shot needs. */
@@ -263,7 +262,7 @@ public class CameraShooterTeleOp extends OpMode {
 
         // ---- hood and flywheel speed ----
         if (gamepad1.x && !lastX) flywheelOn = !flywheelOn;
-        double rpmStep = gamepad1.left_bumper ? 25.0 : 100.0;
+        double rpmStep = gamepad1.left_bumper ? 25.0 : 250.0;
         if (gamepad1.y && !lastY) manualRpm += rpmStep;
         if (gamepad1.a && !lastA) manualRpm -= rpmStep;
         if (gamepad1.left_stick_button && !lastLeftStick) nectarMode = !nectarMode;
@@ -320,7 +319,7 @@ public class CameraShooterTeleOp extends OpMode {
                 problem = "TURNING BACKWARDS: flip both REVERSE_SHOOTER_... settings";
             else if (otherTurns && Math.abs(Math.abs(other) - Math.abs(mine)) > 0.15 * Math.abs(mine))
                 problem = "THE TWO MOTORS SHOW DIFFERENT SPEEDS. On one shaft they must be equal: an encoder is faulty, or something between them slips";
-            else if (actualRpm < 0.7 * commandedRpm && commandedRpm < 4000.0)
+            else if (actualRpm < 0.7 * commandedRpm && commandedRpm < 3500.0)
                 problem = "TOO SLOW: it cannot reach the speed. Take the balls out; if it is still slow, something is rubbing or the battery is low";
         }
         if (speedBlind && SHOOTER_HOLD_SPEED) problem = "NO SPEED READING for a moment (jam, or encoder cable): running on plain power until X is pressed off and on. " + problem;
